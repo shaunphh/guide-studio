@@ -59,4 +59,4 @@ Approved type defaults: covers 196px Bold, −3% tracking and 85% line height; s
 
 Direct Google Docs/Sheets connections; automatic source refresh and conflict resolution; shared team saving and accounts; persistent version history; publishing global brand updates to the existing tools. This trial establishes the editor, page rendering and saved issue format before those integrations.
 
-The Instagram post mockup preview idea is recorded in `NOTES.md` for a later pass across this tool, Tape Type and Event-guide.
+The Instagram post mockup preview idea is recorded in `notes/decisions.md` for a later pass across this tool, Tape Type and Event-guide.
