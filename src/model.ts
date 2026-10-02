@@ -1,6 +1,7 @@
 import { rowsFromCsv } from './event-source.js'
 import { crc32 } from './zip'
 import { readBounds, type CoverBounds } from './cover-bounds'
+import { adNumber, adStyle, adValue } from './adTokens'
 
 export type Series = 'picks' | 'new'
 export type Crop = { x: number; y: number; zoom: number }
@@ -12,9 +13,12 @@ export type Library = { version: 1; activeId: string; issues: Issue[]; brand: Br
 // The AD palette shared with Tape Type and the Event Guide (2 Oct): yellow #FFED1F, light #F0F0F0,
 // dark #101010, grey on black #C2C2C2. Pictures are Tape Type's tall, 540. Body text Regular 400.
 // Story titles: capitals at the variable font's 168 in every tool.
-export const BASE_BRAND: Brand = { revision: 7, bodySize: 38, bodyWeight: 400, titleSize: 69, titleWeight: 168, dateWeight: 166, lineHeight: 1.3, margin: 56, imageHeight: 540, coverSize: 196, coverTracking: -3, coverLineHeight: .85, subtitleSize: 46, lightBody: '#4b4a4a', darkBody: '#c2c2c2', light: '#f0f0f0', dark: '#101010', yellow: '#ffed1f' }
+// The house style starts from the shared AD tokens (ad-tokens.json, synced from Tape Type by
+// scripts/sync-tokens.mjs). House style edits still adjust a library's own copy.
+const bodyStyle = adStyle('body'), titleStyle = adStyle('story-title-carousel'), coverStyle = adStyle('cover-carousel')
+export const BASE_BRAND: Brand = { revision: 7, bodySize: bodyStyle.size, bodyWeight: bodyStyle.weight === 500 ? 500 : 400, titleSize: titleStyle.size, titleWeight: titleStyle.stem, dateWeight: adStyle('date-strip').stem, lineHeight: bodyStyle.lineHeight, margin: adNumber('spacing', 'margin-inside'), imageHeight: adNumber('spacing', 'picture-height'), coverSize: coverStyle.size, coverTracking: Math.round(coverStyle.tracking * 1000) / 10, coverLineHeight: coverStyle.lineHeight, subtitleSize: adStyle('supporting-line').size, lightBody: adValue('color', 'grey-on-light'), darkBody: adValue('color', 'grey-on-dark'), light: adValue('color', 'light'), dark: adValue('color', 'dark'), yellow: adValue('color', 'yellow') }
 /** The grey for venues, dates and other details, as on the Event Guide. */
-export const META_GREY = '#7f7c7c'
+export const META_GREY = adValue('color', 'meta')
 /** Boxes dragged before revision 2 were trial values Shaun sent over; they are now the defaults, so they are dropped once. */
 export const BACKGROUNDS_REVISION = 2
 export const seriesName = (s: Series) => s === 'picks' ? 'Event Guide Picks' : 'What’s New in Dublin'
@@ -94,7 +98,7 @@ export function sanitizeBrand(value: unknown): Brand {
   // Revision 6 took the shared title weight, 168; revision 7 the shared tag weight, ExtraBold 166, for the date strip.
   const shared = b.revision >= 4 ? b : BASE_BRAND, body = b.revision >= 5 ? b : BASE_BRAND, titles = b.revision >= 6 ? b : BASE_BRAND, tags = b.revision >= 7 ? b : BASE_BRAND
   const color = (v: unknown, fallback: string) => typeof v === 'string' && /^#[\da-f]{6}$/i.test(v) ? v : fallback
-  return { revision: 7, bodySize: bounded(type.bodySize, 34, 44, 38), bodyWeight: body.bodyWeight === 500 ? 500 : 400, titleSize: b.revision === 2 ? 69 : bounded(type.titleSize, 45, 90, 69), titleWeight: bounded(titles.titleWeight, 141, 188, 168), dateWeight: bounded(tags.dateWeight, 141, 188, 166), lineHeight: bounded(type.lineHeight, 1.15, 1.4, 1.3), margin: bounded(b.margin, 44, 76, 56), imageHeight: bounded(shared.imageHeight, 360, 600, 540), coverSize: bounded(type.coverSize, 150, 220, 196), coverTracking: bounded(type.coverTracking, -6, 0, -3), coverLineHeight: bounded(type.coverLineHeight, .75, 1, .85), subtitleSize: bounded(type.subtitleSize, 38, 54, 46), lightBody: b.revision === 2 ? '#4b4a4a' : color(type.lightBody, '#4b4a4a'), darkBody: color(shared.darkBody, BASE_BRAND.darkBody), light: color(b.light, BASE_BRAND.light), dark: color(shared.dark, BASE_BRAND.dark), yellow: color(shared.yellow, BASE_BRAND.yellow) }
+  return { revision: 7, bodySize: bounded(type.bodySize, 34, 44, BASE_BRAND.bodySize), bodyWeight: body.bodyWeight === 500 ? 500 : 400, titleSize: b.revision === 2 ? BASE_BRAND.titleSize : bounded(type.titleSize, 45, 90, BASE_BRAND.titleSize), titleWeight: bounded(titles.titleWeight, 141, 188, BASE_BRAND.titleWeight), dateWeight: bounded(tags.dateWeight, 141, 188, BASE_BRAND.dateWeight), lineHeight: bounded(type.lineHeight, 1.15, 1.4, BASE_BRAND.lineHeight), margin: bounded(b.margin, 44, 76, BASE_BRAND.margin), imageHeight: bounded(shared.imageHeight, 360, 600, BASE_BRAND.imageHeight), coverSize: bounded(type.coverSize, 150, 220, BASE_BRAND.coverSize), coverTracking: bounded(type.coverTracking, -6, 0, BASE_BRAND.coverTracking), coverLineHeight: bounded(type.coverLineHeight, .75, 1, BASE_BRAND.coverLineHeight), subtitleSize: bounded(type.subtitleSize, 38, 54, BASE_BRAND.subtitleSize), lightBody: b.revision === 2 ? BASE_BRAND.lightBody : color(type.lightBody, BASE_BRAND.lightBody), darkBody: color(shared.darkBody, BASE_BRAND.darkBody), light: color(b.light, BASE_BRAND.light), dark: color(shared.dark, BASE_BRAND.dark), yellow: color(shared.yellow, BASE_BRAND.yellow) }
 }
 // Earlier backups embedded the demo poster. Recognise its exact bytes, without excluding replacement photography.
 const isSamplePoster = (photo: string) => photo === '/photos/art.jpg' || (photo.length === 299695 && crc32(new TextEncoder().encode(photo)) === 2975244171)

@@ -3,17 +3,22 @@ import { defaults } from './tape/settings'
 import { photoRect } from './tape/photo'
 import type { CoverBounds } from './cover-bounds'
 import { gxCovers, nearestStatic, stemOf } from './barlow'
+import { adNumber, adStyle } from './adTokens'
 import { META_GREY, coverLook, coverPhoto, designUnlocked, handlesOf, pictureHeight, type Brand, type Crop, type Issue, type Story } from './model'
 
 export const WIDTH = 1080, HEIGHT = 1350
 /** Story text must end above this line, clear of the footer. */
 const BODY_BOTTOM = HEIGHT - 146
 /** Tape Type's cover furniture (furniture.ts): marks and lettering keep 80px from every edge; the logo is 210 wide, the arrow 100. */
-const SAFE = 80, LOGO_WIDTH = 210, ARROW_WIDTH = 100
+// From the shared AD tokens (ad-tokens.json): the cover's safe area and its marks, as on Tape Type's covers.
+const SAFE = adNumber('spacing', 'safe-cover'), LOGO_WIDTH = adNumber('size', 'logo-cover'), ARROW_WIDTH = adNumber('size', 'arrow')
 /** The AD footer style, shared with the Event Guide: Bold, the names in ink, dates and details in the meta grey. */
-const FOOTER = { size: 31, weight: 700, step: 35 }
+const footer = adStyle('footer')
+const FOOTER = { size: footer.size, weight: footer.weight, step: Math.round(footer.size * footer.lineHeight) }
 /** Tape Type's inside-page label (inside.ts): ExtraBold at the body size, on tape with a clean cut of its own. */
-const LABEL = { size: 38, weight: 800 }
+const LABEL = { size: adStyle('label').size, weight: adStyle('label').weight }
+/** Carousel covers: the headline's and the supporting line's weights. */
+const COVER_WEIGHT = adStyle('cover-carousel').weight, SUPPORTING_WEIGHT = adStyle('supporting-line').weight
 /** Tape Type's eyebrow tag (geometry.ts), in ems of the tag's size: the cover date strip is one. */
 const TAG_PADDING = { x: .45, top: .4, bottom: .22 }
 const images = new Map<string, Promise<HTMLImageElement>>()
@@ -269,7 +274,7 @@ function drawCover(ctx: CanvasRenderingContext2D, issue: Issue, brand: Brand, as
   tintedMark(ctx, arrow, WIDTH - SAFE - ARROW_WIDTH, arrowTop, ARROW_WIDTH, markInk)
 
   const size = brand.coverSize, tracking = size * brand.coverTracking / 100, lineStep = size * brand.coverLineHeight
-  font(ctx, size, 700, false, c.title)
+  font(ctx, size, COVER_WEIGHT, false, c.title)
   // Keep deliberate line breaks and the specified type size. Long copy gets a visible fit warning.
   const labels = c.title.trim().split('\n')
   if (!c.title.trim()) errors.push('Add a cover headline.')
@@ -283,7 +288,7 @@ function drawCover(ctx: CanvasRenderingContext2D, issue: Issue, brand: Brand, as
   // Each grew evenly around the old box, so the lettering stays where it was.
   const padX = isNew ? 68.5 : 82, padTop = isNew ? 62 : 59, padBottom = isNew ? 77 : 64
   const subtitle = look.showSubtitle ? c.subtitle.trim() : ''
-  font(ctx, brand.subtitleSize, 500, false, look.showSubtitle ? c.subtitle : '')
+  font(ctx, brand.subtitleSize, SUPPORTING_WEIGHT, false, look.showSubtitle ? c.subtitle : '')
   const onTape = look.subtitlePosition === 'tape'
   // At the foot, the supporting line keeps clear of the arrow beside it.
   const subLines = subtitle ? wrap(ctx, subtitle, onTape ? maxWidth : WIDTH - 2*SAFE - ARROW_WIDTH - 40) : []
@@ -301,11 +306,11 @@ function drawCover(ctx: CanvasRenderingContext2D, issue: Issue, brand: Brand, as
   // The cut is drawn upside down: its wider strip runs under the last line, so the block stands on it.
   ctx.save(); ctx.translate(background.x,background.y+background.height); ctx.scale(background.width/box.width,-background.height/box.height); ctx.translate(-box.x,-box.y)
   ctx.fillStyle = isNew ? brand.yellow : brand.light; ctx.fill(new Path2D(shape.path)); ctx.restore()
-  ctx.fillStyle = brand.dark; font(ctx,size,700,false,c.title)
+  ctx.fillStyle = brand.dark; font(ctx, size, COVER_WEIGHT,false,c.title)
   labels.forEach((line,i) => trackedText(ctx,line,x+padX,y+padTop+ascent+i*lineStep,tracking))
 
   if (subtitle) {
-    font(ctx,brand.subtitleSize,500,false,subtitle); ctx.fillStyle = onTape ? brand.dark : brand.light
+    font(ctx, brand.subtitleSize, SUPPORTING_WEIGHT,false,subtitle); ctx.fillStyle = onTape ? brand.dark : brand.light
     // Its last line sits on the safe area's foot, level with the foot of the arrow.
     const subtitleY = onTape ? y + height - padBottom - subHeight + 28 + brand.subtitleSize*.78 : HEIGHT - SAFE - (subLines.length-1)*subStep
     subLines.forEach((line,i) => ctx.fillText(line,onTape?x+padX:SAFE,subtitleY+i*subStep))
@@ -316,7 +321,7 @@ function drawCover(ctx: CanvasRenderingContext2D, issue: Issue, brand: Brand, as
   const date = c.date.toUpperCase()
   if (date) {
     // A tag on the headline's tape, every AD tag's style: ExtraBold capitals on clean-cut tape.
-    const dw = drawTag(ctx, date, WIDTH/2, y-20, 48, brand.dateWeight, -.018, isNew ? brand.light : brand.yellow, brand.dark, 18473562)
+    const dw = drawTag(ctx, date, WIDTH/2, y-20, adStyle('date-strip').size, brand.dateWeight, -.018, isNew ? brand.light : brand.yellow, brand.dark, 18473562)
     if (dw > WIDTH - 2*SAFE) errors.push('The cover date is too long.')
   }
   return { background, headline: { x, y, width, height } }

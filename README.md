@@ -39,6 +39,10 @@ The hosted site keeps its own library, separate from the local one at 127.0.0.1:
 
 The complete library, including uploaded image data and separate crops, is saved in IndexedDB. Save failures are visible. This is local to the browser and origin (including port): there are no accounts, cloud storage or cross-device collaboration. Use Backup for a portable `.guide.json` containing the complete issue, actual image data and house styles. Restore creates a new issue and explicitly lets you choose whether to apply its saved styles globally. Undo/redo is available during a session; it is not a persistent version history. Browser storage clearing removes local drafts, so keep backups for important work. Avoid editing the same local library in multiple tabs simultaneously.
 
+## The shared AD tokens
+
+The house style starts from the values every Alternative Dublin tool shares: `src/ad-tokens.json`, copied unchanged from Tape Type with `src/adTokens.ts` (how the tools read it) by `node scripts/sync-tokens.mjs`. The colours, type sizes and weights, margins, picture height, safe area and mark sizes come from it; House style edits still adjust a library's own copy. To change a shared value, change it in Tape Type, then sync.
+
 ## Reused foundations
 
 - `src/tape/geometry.ts`, `types.ts`, `settings.ts`, `photo.ts`: copied from Tape Type (`0615b68`) for seeded tape geometry and crop calculations. The existing tools are untouched.
