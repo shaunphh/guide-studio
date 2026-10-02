@@ -25,6 +25,7 @@ The hosted site keeps its own library, separate from the local one at 127.0.0.1:
 - Picks omits supporting copy; What’s New places it at the bottom over the photos. Both use a dark divider and a top-right logo. Logo and arrow are yellow for Picks, white for What’s New.
 - Four-photo, logo-position, mark-colour, divider-colour and subtitle-position alternatives stay visible but disabled. Add `?unlocked` to the local URL for design exploration. These are editorial guardrails, not access controls. Hidden photo slots and supporting copy stay saved.
 - Select a story to edit its title, copy, emphasis, photo, footer and picture height. Reorder, duplicate and add stories.
+- ↑ and ↓ step through the pages in the sidebar's order, as clicking them does, except while typing in a field, on a slider, in a dialog, or nudging the tape box.
 - Upload a cover image directly into either photo slot, or use an eligible story image. Uploads and cover crops stay independent of inside pages.
 - Adjust tape background opens a temporary bounding box. Drag the box or its handles, enter exact X/Y/width/height, and copy the values. Each series keeps its own dimensions per guide. The outline never exports; the adjusted background does.
 - The sample stories run about as long as a real one (~520 characters, which fills a page under a one-line headline). My guides → New guide → “Start from the sample pages” makes a fresh copy. House style → Make a full-pages preview runs a copy of the open guide to the very last line, using the renderer’s actual wrapping to stop above the footer.
