@@ -1,0 +1,8 @@
+{
+  "name": "alternative-dublin-guide-studio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "dev": "vite --host 127.0.0.1 --port 5193 --strictPort", "build": "tsc --noEmit && vite build", "test": "vitest run" },
+  "devDependencies": { "typescript": "~5.6.3", "vite": "^6.0.5", "vitest": "^4.1.10" }
+}
