@@ -73,6 +73,9 @@ describe('importing editorial content', () => {
     // A Blurb column, when the team adds one, becomes the story's text.
     const blurbs = parseImport(SHEET.replace('TOP PICKS', 'TOP PICKS,Blurb').split('\n').map((row, i) => i === 2 ? `${row},"Two improv nights, one stage."` : i ? `${row},` : row).join('\n'), 'picks')
     expect(blurbs.stories[0].body).toBe('Two improv nights, one stage.')
+    // With the website's DESCRIPTION column too (the Events Sheet Guide puts it first), BLURB still gives the text.
+    const both = parseImport(SHEET.replace('TOP PICKS', 'TOP PICKS,DESCRIPTION,BLURB').split('\n').map((row, i) => i === 2 ? `${row},Improv tonight.,"Two improv nights, one stage."` : i ? `${row},,` : row).join('\n'), 'picks')
+    expect(both.stories[0].body).toBe('Two improv nights, one stage.')
   })
   it('says where What’s New stories come from, and when nothing is ticked', () => {
     expect(() => parseImport(SHEET, 'new')).toThrow('That’s the events Sheet, which has no What’s New column.')

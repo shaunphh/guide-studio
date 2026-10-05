@@ -507,7 +507,7 @@ const SHEET_GUIDE=`<details class="sheet-guide"><summary>How to set up the Sheet
 <li><b>Venue</b>.</li></ul>Leave a cell empty when a story doesn’t need it: What’s New stories often have no date.</li>
 <li><b>A tab a week:</b> duplicate last week’s tab, clear its rows, and paste the new tab’s link here. Each tab has its own link: open the tab and copy the address.</li>
 <li><b>Photos</b> go in here, after loading.</li></ol>
-<p><b>Picks from the events Sheet:</b> in a Picks guide, the events Sheet’s link brings in the rows with Approved and TOP PICKS ticked, with their names, dates, times, venues and handles. Add a Blurb column there for the text.</p></details>`
+<p><b>Picks from the events Sheet:</b> in a Picks guide, the events Sheet’s link brings in the rows with Approved and TOP PICKS ticked, with their names, dates, times, venues and handles. Add a BLURB column at the end of its tab for each pick’s text, about 500 characters; without one, the website’s short DESCRIPTION comes in as a start.</p></details>`
 function openImport(){
   importResult=null
   const series=issue().series
