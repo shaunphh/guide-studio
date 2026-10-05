@@ -46,7 +46,7 @@ The first prototype copied Tape Type’s geometry, photo crop logic and Barlow f
 
 Shared with Tape Type, the event guide and Good Eye after the design-system audit.
 - Palette #F0F0F0 / #101010 / #FFED1F, grey on black #C2C2C2, details #7F7C7C. Pictures 540. Body Regular 400. All upright text from the variable font (`src/barlow.ts`), italics and letters it lacks from static Barlow.
-- Story titles in capitals at 168. One footer style: Bold 31px, line step 35 (Condensed Bold 36px, step 40, since 5 October).
+- Story titles in capitals at 168. One footer style: Bold 31px, line step 35 (Condensed SemiBold 36px, step 40, since 5 October).
 - Tags (round 7): every AD tag is ExtraBold capitals on clean-cut tape. The page number already was (Tape Type’s label). The cover date strip is now a tag too: Tape Type’s eyebrow box (padding .45 / .4 / .22 em), the label’s clean cut fitted to it, the cut on the free end and the foot flat, at 166 (was a hand-drawn strip at 178). It keeps its slight turn. Saved House styles take 166 once (brand revision 7); the slider still tunes it.
 - Each change reaches saved libraries once through the brand `revision`; later House style edits stick.
 
@@ -55,9 +55,9 @@ Shared with Tape Type, the event guide and Good Eye after the design-system audi
 The team settled on longer stories in their Canva pages (the Middle-earth quiz, ~530 characters with italics and bold; Pretty Good Improv x Failed State, ~510 in three paragraphs under a two-line title), and Shaun didn't want to ask them to cut again. Body text stays 38px at 1.3. The room came from:
 - the picture, 540 → 500 (its own token, `picture-height-carousel`; Tape Type's inside pictures stay 540);
 - the title, 69 → 64px (`story-title-carousel`);
-- the title starts 70px under the picture (was 78) and the story 10px under the title's last line (was 30), close to the Canva pages;
+- the title starts 60px under the picture (was 78) and the story 20px under the title's last line (was 30): first 70 and 10, then the title came up 10px to get more room below it (Shaun);
 - the story's foot: it used to stop 146px from the bottom whatever the footer held; now it keeps 36px clear of the top of the footer's first line, so a one-line footer gives it about 26px more and a two-line footer about 13px less (`storyLayout` in render.ts, which the sample fill uses too);
-- the footer itself, Condensed Bold 36px (was Bold 31px at normal width), as the Canva pages set it: details fit one line more often, and they read bigger.
+- the footer itself, Condensed SemiBold 36px (was Bold 31px at normal width), as the Canva pages set it: details fit one line more often, and they read bigger. Bold at first; a weight down, as Bold read a little heavy.
 Under a two-line title and a one-line footer the page now holds 10 lines and a paragraph break: both stories fit, as does the Bingo Bilingo one. Saved House styles take 64 and 500 once (brand revision 8).
 
 ## Hosting (2 October)

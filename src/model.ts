@@ -1,4 +1,4 @@
-import { rowsFromCsv } from './event-source.js'
+import { mapHeaders, normalizeRows, rowsFromCsv } from './event-source.js'
 import { crc32 } from './zip'
 import { readBounds, type CoverBounds } from './cover-bounds'
 import { adNumber, adStyle, adValue } from './adTokens'
@@ -128,13 +128,48 @@ export function sanitizeIssue(value: unknown): Issue {
   return { id: string(o.id, 100) || newId(), name: string(o.name, 150) || 'Untitled guide', series, stories, sample: o.sample === true, updated: string(o.updated, 100) || new Date().toISOString(), cover: { title: string(c.title, 250) || coverTitle(series), subtitle: string(c.subtitle, 300), date: string(c.date, 100), slots: Array.from({ length: 4 }, (_, i) => coverStories.some(s => s.id === c.slots?.[i]) ? c.slots[i] : (coverStories[i % coverStories.length]?.id || '')), photos: Array.from({ length: 4 }, (_, i) => safePhoto(c.photos?.[i])), backgrounds: { picks:readBounds(boxes.picks), new:readBounds(boxes.new) }, backgroundsRevision: BACKGROUNDS_REVISION, crops: Array.from({ length: 4 }, (_, i) => safeCrop(c.crops?.[i])), position: bounded(c.position, 30, 70, 50), scrim: bounded(c.scrim, 0, 80, 30), layout: c.layout === 4 ? 4 : 2, orientation: c.orientation === 'horizontal' ? 'horizontal' : 'vertical', logoPosition: ['left','right','off'].includes(c.logoPosition) ? c.logoPosition : 'right', markColour: ['series','yellow','white','dark'].includes(c.markColour) ? c.markColour : 'series', divider: ['dark','light','yellow'].includes(c.divider) ? c.divider : 'dark', subtitlePosition: c.subtitlePosition === 'tape' ? 'tape' : 'bottom' } }
 }
 
-export function parseImport(input: string): { stories: Story[]; warnings: string[] } {
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+/** A Sheet time as footers write it: 8:00 PM → 8pm, 7:30 PM → 7:30pm, 20:00 → 8pm. Anything else stays as typed; TBC is left out. */
+export function footerTime(value: string) {
+  const time = value.trim(), parts = /^(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)?$/i.exec(time)
+  if (!parts) return /^tbc$/i.test(time) ? '' : time
+  let hours = Number(parts[1]), meridiem = parts[3]?.toLowerCase()
+  if (hours > 23 || (meridiem && (hours < 1 || hours > 12))) return time
+  if (!meridiem) { meridiem = hours >= 12 ? 'pm' : 'am'; hours = hours % 12 || 12 }
+  return `${hours}${parts[2] && parts[2] !== '00' ? `:${parts[2]}` : ''}${meridiem}`
+}
+/** A tick in a Sheet column: TRUE, or yes, y, 1, x, ✓. */
+const ticked = (value: unknown) => /^(true|yes|y|1|x|✓|✔)$/i.test(String(value ?? '').trim())
+/**
+ * The event guide's Sheet as a CSV (Google Sheets → File → Download → CSV, or pasted): the week's events,
+ * one a row, read the way the event guide reads them (weekday rows, approval, dates). A Picks guide takes
+ * the approved rows with TOP PICKS ticked: title, handle, date, time and venue come from the row, and the
+ * text from a Blurb (or Description) column when the Sheet has one. Null for any other CSV.
+ */
+function sheetStories(text: string, series: Series) {
+  const table = rowsFromCsv(text), columns = mapHeaders(table.headers)
+  if (columns.topPick < 0 && columns.whatsNew < 0) return null
+  if (series === 'new' && columns.whatsNew < 0) throw new Error('That’s the events Sheet, which has no What’s New column. Paste the What’s New stories from your doc instead.')
+  const { events } = normalizeRows(table)
+  const picked = events.filter((event: { topPick: boolean; whatsNew: string }) => series === 'picks' ? event.topPick : ticked(event.whatsNew))
+  if (!picked.length) throw new Error(series === 'picks' ? 'No approved rows have TOP PICKS ticked. Tick the week’s picks in the Sheet, or paste the stories from your doc.' : 'No approved rows are ticked What’s New.')
+  const keys = table.headers.map((header: string) => header.toLowerCase().replace(/[^a-z]/g, ''))
+  const blurb = keys.findIndex((key: string) => ['blurb', 'description', 'text', 'body', 'copy', 'story'].includes(key))
+  const stories: Story[] = picked.map((event: { title: string; instagram: string; date: Date; time: string; venue: string; sourceRow: number }) => ({ ...blankStory(), title: event.title, body: blurb >= 0 ? string(table.rows[event.sourceRow - 2]?.[blurb]).trim() : '', handle: event.instagram, date: `${event.date.getDate()} ${MONTH_NAMES[event.date.getMonth()]}`, time: footerTime(event.time), venue: event.venue }))
+  const warnings = [`${picked.length} of the Sheet’s ${events.length} approved events are ticked ${series === 'picks' ? 'TOP PICKS' : 'What’s New'}.`]
+  if (blurb < 0) warnings.push('The Sheet has no Blurb column, so each story’s text is written here.')
+  return { stories, warnings, textless: blurb < 0 }
+}
+
+export function parseImport(input: string, series: Series = 'picks'): { stories: Story[]; warnings: string[] } {
   const text = input.trim().replace(/\r\n?/g, '\n')
   if (!text) throw new Error('Paste some stories first.')
   const warnings: string[] = []
-  let stories: Story[] = []
+  let stories: Story[] = [], textless = false
   const firstLine = text.split('\n')[0]
-  if (/(?:title|name|headline)/i.test(firstLine) && firstLine.includes(',')) {
+  const sheet = firstLine.includes(',') ? sheetStories(text, series) : null
+  if (sheet) { stories = sheet.stories; textless = sheet.textless; warnings.push(...sheet.warnings) }
+  else if (/(?:title|name|headline)/i.test(firstLine) && firstLine.includes(',')) {
     const { headers, rows } = rowsFromCsv(text)
     const keys = headers.map((h: string) => h.toLowerCase().replace(/[^a-z]/g, ''))
     const field = (r: string[], choices: string[]) => string(r[keys.findIndex((k: string) => choices.includes(k))]).trim()
@@ -164,7 +199,7 @@ export function parseImport(input: string): { stories: Story[]; warnings: string
   if (!stories.length) throw new Error('No stories found. Use a title and paragraph, with --- between stories.')
   stories.forEach((s, i) => {
     if (!s.title) warnings.push(`Story ${i + 1} needs a title.`)
-    if (!s.body) warnings.push(`Story ${i + 1} needs body text.`)
+    if (!s.body && !textless) warnings.push(`Story ${i + 1} needs body text.`)
     // Instagram links become handles; a row may name two.
     s.handle = s.handle.split(/[\s,]+/).filter(Boolean).map(part => { if (!/^https?:\/\//.test(part)) return part; try { return '@' + new URL(part).pathname.split('/').filter(Boolean)[0] } catch { return part /* Kept for review. */ } }).join(' ')
   })

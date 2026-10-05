@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { BASE_BRAND, blankStory, coverLook, coverPhoto, handlesOf, makeIssue, parseImport, pictureHeight, sanitizeBrand, sanitizeIssue, switchSeries } from '../src/model'
+import { BASE_BRAND, blankStory, coverLook, coverPhoto, footerTime, handlesOf, makeIssue, parseImport, pictureHeight, sanitizeBrand, sanitizeIssue, switchSeries } from '../src/model'
 import { clampBounds, dragBounds } from '../src/cover-bounds'
 import { coverFrames } from '../src/render'
 import { crc32, zipFiles } from '../src/zip'
@@ -54,6 +54,31 @@ describe('importing editorial content', () => {
     const { stories,warnings }=parseImport('# First story\nA paragraph\n## Second story')
     expect(stories.map(s=>s.title)).toEqual(['First story','Second story'])
     expect(warnings).toContain('Story 2 needs body text.')
+  })
+  // The events Sheet as the event guide reads it: its headers (25 Sep 2026), weekday rows, approval, TOP PICKS.
+  const SHEET = ['DATE,NAME,LOCATION,START TIME,Instagram name,EVENT/TICKETS LINK,1st,2nd,Comments,Approved,TOP PICKS',
+    'FRIDAY (9),,,,,,,,,,',
+    '10/09,Pretty Good Improv x Failed State,The Pearse Centre,8:00 PM,the_pearse_centre,,,,,TRUE,TRUE',
+    ',Bingo Bilingo,The Workman’s Club,7:30 PM,https://www.instagram.com/bingobilingo/,,,,,TRUE,FALSE',
+    '10/10,Lord of the Rings Quiz,Token,7:30 PM,tokendublin,,,,,TRUE,TRUE',
+    '10/10,Not approved yet,Somewhere,9:00 PM,,,,,,FALSE,TRUE'].join('\n')
+  it('takes the TOP PICKS from the events Sheet, as the event guide reads it', () => {
+    const { stories, warnings } = parseImport(SHEET, 'picks')
+    expect(stories.map(s => s.title)).toEqual(['Pretty Good Improv x Failed State', 'Lord of the Rings Quiz'])
+    expect(stories[0]).toMatchObject({ handle: '@the_pearse_centre', date: '9 Oct', time: '8pm', venue: 'The Pearse Centre', body: '' })
+    expect(stories[1]).toMatchObject({ date: '10 Oct', time: '7:30pm' })
+    expect(warnings[0]).toBe('2 of the Sheet’s 3 approved events are ticked TOP PICKS.')
+    expect(warnings.some(w => w.includes('needs body text'))).toBe(false)
+    // A Blurb column, when the team adds one, becomes the story's text.
+    const blurbs = parseImport(SHEET.replace('TOP PICKS', 'TOP PICKS,Blurb').split('\n').map((row, i) => i === 2 ? `${row},"Two improv nights, one stage."` : i ? `${row},` : row).join('\n'), 'picks')
+    expect(blurbs.stories[0].body).toBe('Two improv nights, one stage.')
+  })
+  it('says where What’s New stories come from, and when nothing is ticked', () => {
+    expect(() => parseImport(SHEET, 'new')).toThrow('Paste the What’s New stories from your doc instead.')
+    expect(() => parseImport(SHEET.replace(/TRUE\n/g, 'FALSE\n').replace(/TRUE$/, 'FALSE'), 'picks')).toThrow('No approved rows have TOP PICKS ticked.')
+  })
+  it('writes Sheet times as the footers do', () => {
+    expect(['8:00 PM', '7:30 pm', '20:00', '12:00 PM', '00:30', 'TBC', 'Late'].map(footerTime)).toEqual(['8pm', '7:30pm', '8pm', '12pm', '12:30am', '', 'Late'])
   })
 })
 describe('saved projects', () => {

@@ -9,13 +9,14 @@ import { META_GREY, coverLook, coverPhoto, designUnlocked, handlesOf, pictureHei
 export const WIDTH = 1080, HEIGHT = 1350
 /** A story page's spacing, tightened on 5 Oct 2026 so the stories the team writes fit under a two-line
  *  title (it was 78 and 30, and the story stopped 146px from the foot whatever the footer held): the
- *  title starts 70px under the picture, the story 10px under the title's last line, and the story keeps
- *  36px clear of the top of the footer's first line. */
-const PICTURE_TO_TITLE = 70, TITLE_TO_BODY = 10, FOOTER_CLEAR = 36
+ *  title starts 60px under the picture, the story 20px under the title's last line (Shaun: the title
+ *  needed more room below, so it came up), and the story keeps 36px clear of the top of the footer's
+ *  first line. */
+const PICTURE_TO_TITLE = 60, TITLE_TO_BODY = 20, FOOTER_CLEAR = 36
 /** Tape Type's cover furniture (furniture.ts): marks and lettering keep 80px from every edge; the logo is 210 wide, the arrow 100. */
 // From the shared AD tokens (ad-tokens.json): the cover's safe area and its marks, as on Tape Type's covers.
 const SAFE = adNumber('spacing', 'safe-cover'), LOGO_WIDTH = adNumber('size', 'logo-cover'), ARROW_WIDTH = adNumber('size', 'arrow')
-/** The AD footer style, shared with the Event Guide: Condensed Bold (5 Oct 2026), the names in ink, dates and details in the meta grey. */
+/** The AD footer style, shared with the Event Guide: Condensed SemiBold (5 Oct 2026), the names in ink, dates and details in the meta grey. */
 const footer = adStyle('footer')
 const FOOTER = { size: footer.size, weight: footer.weight, step: Math.round(footer.size * footer.lineHeight), face: footer.condensed ? 'Barlow GX Condensed' : 'Barlow GX Normal' }
 /** Tape Type's inside-page label (inside.ts): ExtraBold at the body size, on tape with a clean cut of its own. */

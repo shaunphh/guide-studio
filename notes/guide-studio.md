@@ -34,6 +34,7 @@ The hosted site keeps its own library, separate from the local one at 127.0.0.1:
 - Cover choices omit the Late Night Art demo poster. New sample covers use the neutral interior and Dublin river photos. On any story, turn off “Offer this photo for the cover” for posters or graphics; the inside page keeps its image.
 - House style controls update all locally saved drafts. A custom story picture height is retained.
 - Import copy: labelled plain-text sections separated by `---`, Markdown headings, or CSV with Title/Name, Body/Description, Handle/Instagram Link, Date, Time and Venue/Location columns. Review before creating a new guide or appending stories. Existing manual edits are never overwritten by an import.
+- The events Sheet as a CSV, the same file the event guide takes (Google Sheets → File → Download → CSV; since 5 October): read the way the event guide reads it (weekday rows, approval, dates). A Picks guide takes the approved rows with TOP PICKS ticked, filling each story's title, handle, date (9 Oct), time (8pm) and venue; the text comes from a Blurb or Description column if the Sheet has one, or is written here. A What's New guide says to paste its stories from the doc, since the Sheet has no What's New column.
 - Export one PNG or an ordered carousel ZIP, at 1× or 2×. Missing photos/content and overflowing pages block export and take you to the page needing attention.
 
 ## Saving
@@ -54,7 +55,7 @@ The house style starts from the values every Alternative Dublin tool shares: `sr
 
 The prototype uses the same canvas drawing for previews, thumbnails and exported PNGs. Fonts and images are local; export has no network service dependency. `src/zip.ts` writes stored ZIP records (PNG is already compressed).
 
-Approved type defaults: covers 196px Bold, −3% tracking and 85% line height; supporting copy 46px Medium; the cover date a tag, ExtraBold capitals on clean-cut tape (Tape Type’s eyebrow); inside body 38px Regular (400); inside titles 64px capitals at the variable font’s 168, Normal width, zero tracking, under 500px pictures; footer Condensed Bold 36px. Body colours are #4B4A4A on light and #C2C2C2 on dark; the AD palette is #F0F0F0 / #101010 / #FFED1F. The two tape backgrounds have different padding for optical balance: around the default headlines, Picks is 639 × 601 and What’s New 689 × 617, centred, with the cut’s wider strip at the bottom. Earlier prototype libraries receive these typography defaults once; subsequent adjustments, copy, photos and crops are preserved.
+Approved type defaults: covers 196px Bold, −3% tracking and 85% line height; supporting copy 46px Medium; the cover date a tag, ExtraBold capitals on clean-cut tape (Tape Type’s eyebrow); inside body 38px Regular (400); inside titles 64px capitals at the variable font’s 168, Normal width, zero tracking, under 500px pictures; footer Condensed SemiBold 36px. Body colours are #4B4A4A on light and #C2C2C2 on dark; the AD palette is #F0F0F0 / #101010 / #FFED1F. The two tape backgrounds have different padding for optical balance: around the default headlines, Picks is 639 × 601 and What’s New 689 × 617, centred, with the cut’s wider strip at the bottom. Earlier prototype libraries receive these typography defaults once; subsequent adjustments, copy, photos and crops are preserved.
 
 ## Deliberately deferred
 
