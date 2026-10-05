@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { BASE_BRAND, blankStory, coverLook, coverPhoto, footerTime, handlesOf, makeIssue, parseImport, pictureHeight, sanitizeBrand, sanitizeIssue, switchSeries } from '../src/model'
+import { BASE_BRAND, blankStory, coverLook, coverPhoto, footerDate, footerTime, handlesOf, makeIssue, parseImport, pictureHeight, sanitizeBrand, sanitizeIssue, switchSeries } from '../src/model'
+import { gvizTable, parseSheetLink } from '../src/sheet'
 import { clampBounds, dragBounds } from '../src/cover-bounds'
 import { coverFrames } from '../src/render'
 import { crc32, zipFiles } from '../src/zip'
@@ -74,11 +75,45 @@ describe('importing editorial content', () => {
     expect(blurbs.stories[0].body).toBe('Two improv nights, one stage.')
   })
   it('says where What’s New stories come from, and when nothing is ticked', () => {
-    expect(() => parseImport(SHEET, 'new')).toThrow('Paste the What’s New stories from your doc instead.')
+    expect(() => parseImport(SHEET, 'new')).toThrow('That’s the events Sheet, which has no What’s New column.')
     expect(() => parseImport(SHEET.replace(/TRUE\n/g, 'FALSE\n').replace(/TRUE$/, 'FALSE'), 'picks')).toThrow('No approved rows have TOP PICKS ticked.')
   })
-  it('writes Sheet times as the footers do', () => {
-    expect(['8:00 PM', '7:30 pm', '20:00', '12:00 PM', '00:30', 'TBC', 'Late'].map(footerTime)).toEqual(['8pm', '7:30pm', '8pm', '12pm', '12:30am', '', 'Late'])
+  it('writes Sheet times and dates as the footers do', () => {
+    expect(['8:00 PM', '7:30 pm', '20:00', '12:00 PM', '00:30', '8:00:00 PM', 'TBC', 'Late'].map(footerTime)).toEqual(['8pm', '7:30pm', '8pm', '12pm', '12:30am', '8pm', '', 'Late'])
+    expect(['Date(2026,9,9)', '2026-10-22', '9 Oct', '22–26 Oct', ''].map(footerDate)).toEqual(['9 Oct', '22 Oct', '9 Oct', '22–26 Oct', ''])
+  })
+  it('reads a stories Sheet loaded from its link: one story to a row, dates and times as footers write them', () => {
+    const table = gvizTable({ status: 'ok', table: {
+      cols: [{ label: 'Title', type: 'string' }, { label: 'Text', type: 'string' }, { label: 'Instagram', type: 'string' }, { label: 'Date', type: 'date' }, { label: 'Time', type: 'timeofday' }, { label: 'Venue', type: 'string' }],
+      rows: [
+        { c: [{ v: 'Pretty Good Improv x Failed State' }, { v: 'Two improv nights.\n\nDoors at 7:30pm.' }, { v: 'https://www.instagram.com/the_pearse_centre/' }, { v: 'Date(2026,9,9)', f: '09/10/2026' }, { v: [20, 0, 0, 0], f: '8:00:00 PM' }, { v: 'The Pearse Centre' }] },
+        { c: [null, null, null, null, null, null] },
+        { c: [{ v: 'IFI Horrorthon' }, { v: 'Five days of horror.' }, { v: '@horrorthon_fest' }, null, null, { v: 'IFI' }] },
+      ] } })
+    expect(table.typed).toEqual(['Date', 'Time'])
+    const { stories, warnings } = parseImport(table, 'new')
+    expect(stories).toHaveLength(2)
+    expect(stories[0]).toMatchObject({ title: 'Pretty Good Improv x Failed State', body: 'Two improv nights.\n\nDoors at 7:30pm.', handle: '@the_pearse_centre', date: '9 Oct', time: '8pm', venue: 'The Pearse Centre' })
+    // The second story's dates were typed as text in a column Google holds as dates, so they came back empty.
+    expect(warnings).toContain('Some stories have no Date. If the Sheet shows one, set its Date column to Plain text (Format → Number → Plain text) and load it again.')
+    expect(() => parseImport({ headers: ['Name of venue', 'Text'], rows: [['Doyle’s', 'Words.']] }, 'new')).toThrow('No Title column.')
+  })
+  it('reads the events Sheet from its link as the event guide does, typed dates and all', () => {
+    const cols = ['DATE', 'NAME', 'LOCATION', 'START TIME', 'Instagram name', 'Approved', 'TOP PICKS'].map(label => ({ label, type: label === 'DATE' ? 'date' : label === 'Approved' || label === 'TOP PICKS' ? 'boolean' : 'string' }))
+    const row = (...values: unknown[]) => ({ c: values.map(v => v === null ? null : { v }) })
+    const table = gvizTable({ status: 'ok', table: { cols, rows: [row('Date(2026,9,9)', 'Pretty Good Improv x Failed State', 'The Pearse Centre', '8:00 PM', 'the_pearse_centre', true, true), row(null, 'Bingo Bilingo', 'The Workman’s Club', '7:30 PM', 'bingobilingo', true, false)] } })
+    const { stories } = parseImport(table, 'picks')
+    expect(stories).toHaveLength(1)
+    expect(stories[0]).toMatchObject({ title: 'Pretty Good Improv x Failed State', date: '9 Oct', time: '8pm', handle: '@the_pearse_centre' })
+  })
+  it('finds the Sheet and tab in the links people copy', () => {
+    const id = '1rXUChbT3TuOI3b7NaXpXudph96BhLCfEneSjcGW6kp4'
+    expect(parseSheetLink(`https://docs.google.com/spreadsheets/d/${id}/edit?gid=170814515#gid=170814515`)).toEqual({ id, gid: '170814515' })
+    expect(parseSheetLink(` https://docs.google.com/spreadsheets/d/${id}/edit#gid=97886486 `)).toEqual({ id, gid: '97886486' })
+    expect(parseSheetLink(`https://docs.google.com/spreadsheets/d/${id}/edit?usp=sharing`)).toEqual({ id, gid: '' })
+    expect(() => parseSheetLink('https://docs.google.com/spreadsheets/d/e/2PACX-1vQ/pubhtml')).toThrow('“Publish to web” link')
+    expect(() => parseSheetLink('https://docs.google.com/document/d/abc/edit')).toThrow('isn’t a Google Sheet link')
+    expect(() => parseSheetLink('our sheet')).toThrow('Paste the Sheet’s link')
   })
 })
 describe('saved projects', () => {

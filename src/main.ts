@@ -2,6 +2,7 @@ import './styles.css'
 import { BASE_BRAND, blankStory, clone, coverLook, coverPhoto, designUnlocked, crop, makeIssue, newId, parseImport, pictureHeight, readLibrary, sanitizeBrand, sanitizeIssue, saveLibrary, seriesName, switchSeries, type Brand, type Issue, type Library, type Series } from './model'
 import { HEIGHT, WIDTH, asset, coverFrames, fillPreviewText, loadFonts, loadedImage, preparePhoto, renderPage } from './render'
 import { zipFiles } from './zip'
+import { loadSheet, parseSheetLink, saveSheetLink, savedSheetLink } from './sheet'
 import { clampBounds, dragBounds, type CoverBounds } from './cover-bounds'
 import { dragPhoto } from './tape/photo'
 
@@ -494,14 +495,43 @@ function openNew(){
   get('create-guide').onclick=()=>{const sample=get<HTMLInputElement>('new-sample').checked,next=makeIssue(get<HTMLSelectElement>('new-series').value as Series,sample);next.name=get<HTMLInputElement>('new-name').value.trim()||(sample?'Sample guide':'Untitled guide');library.issues.push(next);library.activeId=next.id;selected='cover';get<HTMLDialogElement>('modal').close();resetHistory();markSave();renderShell()}
 }
 const IMPORT_EXAMPLE=`Title: A night of live music\nBody: A candlelit evening of acoustic music, with a different line-up every week.\n\nBring a friend and discover your next favourite artist.\nHandle: @therubysessions\nDate: 6 Oct\nTime: 8:30pm\nVenue: Doyle’s Bar\n---\nTitle: Something new in the neighbourhood\nBody: Paste the next story here. Every section becomes an editable page.\nHandle: @alternativedublin`
+/** How to lay out a Sheet so it comes in cleanly, in Import copy. */
+const SHEET_GUIDE=`<details class="sheet-guide"><summary>How to set up the Sheet</summary><ol>
+<li><b>Share it:</b> Share → General access → Anyone with the link → Viewer. The tool only reads it.</li>
+<li><b>Row 1 names the columns,</b> then one story to a row. Nothing above row 1, and no merged cells.</li>
+<li><b>The columns,</b> in any order:<ul>
+<li><b>Title</b>: the page title, as it should read.</li>
+<li><b>Text</b> (or Blurb): the story, about 500 characters. A line break in the cell (⌘ or Ctrl + Enter) starts a new paragraph; <code>**bold**</code> and <code>_italic_</code> work.</li>
+<li><b>Instagram</b>: the handle, or a link to the profile. For two, put a space between them.</li>
+<li><b>Date</b> and <b>Time</b>, as they should read: 9 Oct or 22–26 Oct, 8pm or 7:30pm. Set both columns to Plain text first (Format → Number → Plain text), so the Sheet keeps them as typed.</li>
+<li><b>Venue</b>.</li></ul>Leave a cell empty when a story doesn’t need it: What’s New stories often have no date.</li>
+<li><b>A tab a week:</b> duplicate last week’s tab, clear its rows, and paste the new tab’s link here. Each tab has its own link: open the tab and copy the address.</li>
+<li><b>Photos</b> go in here, after loading.</li></ol>
+<p><b>Picks from the events Sheet:</b> in a Picks guide, the events Sheet’s link brings in the rows with Approved and TOP PICKS ticked, with their names, dates, times, venues and handles. Add a Blurb column there for the text.</p></details>`
 function openImport(){
   importResult=null
-  modal('From copy to carousel.',`<p class="muted">Paste the stories from your doc: a title, then its text, with <b style="white-space:nowrap">---</b> between stories (and, if you like, lines for Handle, Date, Time and Venue). Or choose the events Sheet as a CSV, as in the event guide (Google Sheets → File → Download → CSV): a Picks guide takes the rows with TOP PICKS ticked.</p><div class="import-actions"><button id="use-example" class="text-button">Use an example</button><label class="text-button file-label">Choose CSV or text file<input id="import-file" type="file" accept=".txt,.csv,text/plain,text/csv" hidden></label></div><textarea id="import-text" rows="12" aria-label="Copy to import" placeholder="Title: Your first story&#10;Body: The story goes here…&#10;Handle: @thevenue&#10;---&#10;Title: Your next story"></textarea><div id="import-review"></div><label class="field"><span>Add the stories to</span><select id="import-target"><option value="new">A new ${seriesName(issue().series)} guide</option><option value="current">This guide · keep existing pages</option></select></label>`,`<button id="review-import" class="primary">Review stories ${icon('arrow')}</button><button id="apply-import" class="primary" hidden>Add stories</button>`)
+  const series=issue().series
+  modal('From copy to carousel.',`<div class="section-heading"><h3>From a Google Sheet</h3></div><label class="field sheet-field"><span>Google Sheet link</span><span class="sheet-row"><input id="sheet-link" type="url" inputmode="url" spellcheck="false" autocomplete="off" placeholder="https://docs.google.com/spreadsheets/d/…" value="${escape(savedSheetLink(series))}"><button id="load-sheet" class="secondary" type="button">Load Sheet</button></span></label><p id="sheet-status" class="field-note sheet-status">Paste the link to this week’s tab, as in the event guide.</p>${SHEET_GUIDE}<div class="rule"></div><div class="section-heading"><h3>Or from your doc</h3></div><p class="muted">Paste the stories: a title, then its text, with <b style="white-space:nowrap">---</b> between stories (and, if you like, lines for Handle, Date, Time and Venue). A CSV works too, the Sheet’s download (File → Download → CSV) among them.</p><div class="import-actions"><button id="use-example" class="text-button">Use an example</button><label class="text-button file-label">Choose CSV or text file<input id="import-file" type="file" accept=".txt,.csv,text/plain,text/csv" hidden></label></div><textarea id="import-text" rows="8" aria-label="Copy to import" placeholder="Title: Your first story&#10;Body: The story goes here…&#10;Handle: @thevenue&#10;---&#10;Title: Your next story"></textarea><div id="import-review"></div><label class="field"><span>Add the stories to</span><select id="import-target"><option value="new">A new ${seriesName(series)} guide</option><option value="current">This guide · keep existing pages</option></select></label>`,`<button id="review-import" class="primary">Review stories ${icon('arrow')}</button><button id="apply-import" class="primary" hidden>Add stories</button>`)
+  const sheetStatus=(text:string,error=false)=>{const status=get('sheet-status');status.textContent=text;status.classList.toggle('error',error)}
+  get('load-sheet').onclick=async()=>{
+    const link=get<HTMLInputElement>('sheet-link').value,button=get<HTMLButtonElement>('load-sheet')
+    try{
+      const source=parseSheetLink(link)
+      button.disabled=true;sheetStatus('Reading the Sheet…')
+      const table=await loadSheet(source)
+      saveSheetLink(series,link)
+      importResult=parseImport(table,series)
+      sheetStatus(`Read at ${new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}: ${table.rows.filter(row=>row.some(Boolean)).length} rows.`)
+      showImportReview()
+    }catch(e){invalidateImport();sheetStatus((e as Error).message,true)}
+    finally{button.disabled=false}
+  }
+  get('sheet-link').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();get('load-sheet').click()}}
   get('use-example').onclick=()=>{get<HTMLTextAreaElement>('import-text').value=IMPORT_EXAMPLE;invalidateImport()}
   get<HTMLInputElement>('import-file').onchange=async e=>{const f=(e.target as HTMLInputElement).files?.[0];if(f){if(f.size>2*1024*1024)return toast('Choose a text file smaller than 2 MB.',true);get<HTMLTextAreaElement>('import-text').value=await f.text();invalidateImport()}}
   get('import-text').oninput=invalidateImport
   get('review-import').onclick=()=>{
-    try{importResult=parseImport(get<HTMLTextAreaElement>('import-text').value,issue().series);get('import-review').innerHTML=`<div class="review-box"><b>${importResult.stories.length} stories found</b><ol>${importResult.stories.map(s=>`<li>${escape(s.title||'Missing title')}<small>${s.body.length} characters</small></li>`).join('')}</ol>${importResult.warnings.map(w=>`<p>${escape(w)}</p>`).join('')}</div>`;get<HTMLButtonElement>('apply-import').hidden=false;get<HTMLButtonElement>('apply-import').textContent=`Add ${importResult.stories.length} stories`;get<HTMLButtonElement>('review-import').hidden=true}catch(e){toast((e as Error).message,true)}
+    try{importResult=parseImport(get<HTMLTextAreaElement>('import-text').value,series);showImportReview()}catch(e){toast((e as Error).message,true)}
   }
   get('apply-import').onclick=()=>{
     if(!importResult)return
@@ -511,6 +541,13 @@ function openImport(){
     else{checkpoint('import');issue().stories.push(...stories)}
     selected=stories[0].id;overview=false;panel='edit';markSave();renderShell();toast(`${stories.length} editable stories added. Choose their photos next.`)
   }
+}
+/** What an import found, from a Sheet or from pasted copy, before anything is added. */
+function showImportReview(){
+  if(!importResult)return
+  get('import-review').innerHTML=`<div class="review-box"><b>${importResult.stories.length} stories found</b><ol>${importResult.stories.map(s=>`<li>${escape(s.title||'Missing title')}<small>${s.body.length} characters</small></li>`).join('')}</ol>${importResult.warnings.map(w=>`<p>${escape(w)}</p>`).join('')}</div>`
+  get<HTMLButtonElement>('apply-import').hidden=false;get<HTMLButtonElement>('apply-import').textContent=`Add ${importResult.stories.length} stories`;get<HTMLButtonElement>('review-import').hidden=true
+  get('import-review').scrollIntoView({block:'nearest'})
 }
 function invalidateImport(){importResult=null;get('import-review').innerHTML='';get<HTMLButtonElement>('apply-import').hidden=true;get<HTMLButtonElement>('review-import').hidden=false}
 function download(blob:Blob,name:string){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.hidden=true;document.body.append(a);a.click();a.remove();window.setTimeout(()=>URL.revokeObjectURL(url),30000)}

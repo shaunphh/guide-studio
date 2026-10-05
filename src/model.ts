@@ -129,51 +129,79 @@ export function sanitizeIssue(value: unknown): Issue {
 }
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-/** A Sheet time as footers write it: 8:00 PM → 8pm, 7:30 PM → 7:30pm, 20:00 → 8pm. Anything else stays as typed; TBC is left out. */
+/** A Sheet time as footers write it: 8:00 PM → 8pm, 7:30 PM → 7:30pm, 20:00 → 8pm (a time cell's 8:00:00 PM too). Anything else stays as typed; TBC is left out. */
 export function footerTime(value: string) {
-  const time = value.trim(), parts = /^(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)?$/i.exec(time)
+  const time = value.trim(), parts = /^(\d{1,2})(?:[:.](\d{2}))?(?::\d{2})?\s*(am|pm)?$/i.exec(time)
   if (!parts) return /^tbc$/i.test(time) ? '' : time
   let hours = Number(parts[1]), meridiem = parts[3]?.toLowerCase()
   if (hours > 23 || (meridiem && (hours < 1 || hours > 12))) return time
   if (!meridiem) { meridiem = hours >= 12 ? 'pm' : 'am'; hours = hours % 12 || 12 }
   return `${hours}${parts[2] && parts[2] !== '00' ? `:${parts[2]}` : ''}${meridiem}`
 }
+/** A Sheet date as footers write it: a date cell (Date(2026,9,9), as Google sends it) or 2026-10-09 → 9 Oct. Anything typed stays as typed. */
+export function footerDate(value: string) {
+  const cell = /^Date\((\d{4}),(\d{1,2}),(\d{1,2})/.exec(value.trim()), iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim())
+  if (cell) return `${Number(cell[3])} ${MONTH_NAMES[Number(cell[2])]}`
+  if (iso) return `${Number(iso[3])} ${MONTH_NAMES[Number(iso[2]) - 1]}`
+  return value.trim()
+}
 /** A tick in a Sheet column: TRUE, or yes, y, 1, x, ✓. */
 const ticked = (value: unknown) => /^(true|yes|y|1|x|✓|✔)$/i.test(String(value ?? '').trim())
+/** A Sheet or CSV: its first row the column names. `typed` names columns Google holds as dates or times (see sheet.ts). */
+type Table = { headers: string[]; rows: string[][]; typed?: string[] }
+const columnKey = (header: string) => header.toLowerCase().replace(/[^a-z]/g, '')
 /**
- * The event guide's Sheet as a CSV (Google Sheets → File → Download → CSV, or pasted): the week's events,
- * one a row, read the way the event guide reads them (weekday rows, approval, dates). A Picks guide takes
- * the approved rows with TOP PICKS ticked: title, handle, date, time and venue come from the row, and the
- * text from a Blurb (or Description) column when the Sheet has one. Null for any other CSV.
+ * The events Sheet, the event guide's, read the way the event guide reads it (weekday rows, approval,
+ * dates). A Picks guide takes the approved rows with TOP PICKS ticked: title, handle, date, time and venue
+ * come from the row, and the text from a Blurb (or Description) column when the Sheet has one. Null for
+ * any other table.
  */
-function sheetStories(text: string, series: Series) {
-  const table = rowsFromCsv(text), columns = mapHeaders(table.headers)
+function eventSheetStories(table: Table, series: Series) {
+  const columns = mapHeaders(table.headers)
   if (columns.topPick < 0 && columns.whatsNew < 0) return null
-  if (series === 'new' && columns.whatsNew < 0) throw new Error('That’s the events Sheet, which has no What’s New column. Paste the What’s New stories from your doc instead.')
+  if (series === 'new' && columns.whatsNew < 0) throw new Error('That’s the events Sheet, which has no What’s New column. Use the What’s New stories’ own Sheet, or paste them from your doc.')
   const { events } = normalizeRows(table)
   const picked = events.filter((event: { topPick: boolean; whatsNew: string }) => series === 'picks' ? event.topPick : ticked(event.whatsNew))
   if (!picked.length) throw new Error(series === 'picks' ? 'No approved rows have TOP PICKS ticked. Tick the week’s picks in the Sheet, or paste the stories from your doc.' : 'No approved rows are ticked What’s New.')
-  const keys = table.headers.map((header: string) => header.toLowerCase().replace(/[^a-z]/g, ''))
+  const keys = table.headers.map(columnKey)
   const blurb = keys.findIndex((key: string) => ['blurb', 'description', 'text', 'body', 'copy', 'story'].includes(key))
   const stories: Story[] = picked.map((event: { title: string; instagram: string; date: Date; time: string; venue: string; sourceRow: number }) => ({ ...blankStory(), title: event.title, body: blurb >= 0 ? string(table.rows[event.sourceRow - 2]?.[blurb]).trim() : '', handle: event.instagram, date: `${event.date.getDate()} ${MONTH_NAMES[event.date.getMonth()]}`, time: footerTime(event.time), venue: event.venue }))
   const warnings = [`${picked.length} of the Sheet’s ${events.length} approved events are ticked ${series === 'picks' ? 'TOP PICKS' : 'What’s New'}.`]
   if (blurb < 0) warnings.push('The Sheet has no Blurb column, so each story’s text is written here.')
   return { stories, warnings, textless: blurb < 0 }
 }
+/**
+ * A stories Sheet (or CSV): one story to a row, under Title, Text, Instagram, Date, Time and Venue, in any
+ * order (or the other names below). Dates and times come out as footers write them.
+ */
+function tableStories(table: Table, series: Series) {
+  const events = eventSheetStories(table, series)
+  if (events) return events
+  const keys = table.headers.map(columnKey)
+  const column = (names: string[]) => { for (const name of names) { const index = keys.indexOf(name); if (index >= 0) return index } return -1 }
+  const title = column(['title', 'headline', 'name', 'eventname']), body = column(['text', 'body', 'blurb', 'description', 'copy', 'story', 'comments'])
+  const handle = column(['instagram', 'handle', 'instagramlink', 'instagramname', 'ig']), date = column(['date', 'day']), time = column(['time', 'starttime']), venue = column(['venue', 'location'])
+  if (title < 0) throw new Error('No Title column. The first row names the columns: Title, Text, Instagram, Date, Time, Venue.')
+  const cell = (row: string[], index: number) => index < 0 ? '' : string(row[index]).trim()
+  const rows = table.rows.filter(row => row.some(value => String(value ?? '').trim()))
+  const stories: Story[] = rows.map(row => ({ ...blankStory(), title: cell(row, title), body: cell(row, body), handle: cell(row, handle), date: footerDate(cell(row, date)), time: footerTime(cell(row, time)), venue: cell(row, venue) }))
+  // Google drops a cell typed as text (22–26 Oct) from a column it holds as dates or times.
+  const dropped = [[date, 'Date'], [time, 'Time']].filter(([index]) => typeof index === 'number' && index >= 0 && table.typed?.includes(table.headers[index as number]) && rows.some(row => !cell(row, index as number)))
+  const warnings = dropped.map(([, name]) => `Some stories have no ${name}. If the Sheet shows one, set its ${name} column to Plain text (Format → Number → Plain text) and load it again.`)
+  return { stories, warnings, textless: false }
+}
 
-export function parseImport(input: string, series: Series = 'picks'): { stories: Story[]; warnings: string[] } {
-  const text = input.trim().replace(/\r\n?/g, '\n')
-  if (!text) throw new Error('Paste some stories first.')
+export function parseImport(input: string | Table, series: Series = 'picks'): { stories: Story[]; warnings: string[] } {
   const warnings: string[] = []
   let stories: Story[] = [], textless = false
+  const text = typeof input === 'string' ? input.trim().replace(/\r\n?/g, '\n') : ''
+  if (typeof input === 'string' && !text) throw new Error('Paste some stories first.')
   const firstLine = text.split('\n')[0]
-  const sheet = firstLine.includes(',') ? sheetStories(text, series) : null
-  if (sheet) { stories = sheet.stories; textless = sheet.textless; warnings.push(...sheet.warnings) }
-  else if (/(?:title|name|headline)/i.test(firstLine) && firstLine.includes(',')) {
-    const { headers, rows } = rowsFromCsv(text)
-    const keys = headers.map((h: string) => h.toLowerCase().replace(/[^a-z]/g, ''))
-    const field = (r: string[], choices: string[]) => string(r[keys.findIndex((k: string) => choices.includes(k))]).trim()
-    stories = rows.filter((r: string[]) => r.some(v => v.trim())).map((r: string[]) => ({ ...blankStory(), title: field(r, ['title','name','headline','eventname']), body: field(r, ['body','text','description','copy','story','comments']), handle: field(r, ['handle','instagram','instagramlink']), date: field(r, ['date','day']), time: field(r, ['time','starttime']), venue: field(r, ['venue','location']) }))
+  const csv = firstLine.includes(',') ? rowsFromCsv(text) : null
+  const table: Table | null = typeof input !== 'string' ? input : csv && (/(?:title|name|headline)/i.test(firstLine) || mapHeaders(csv.headers).topPick >= 0) ? csv : null
+  if (table) {
+    const read = tableStories(table, series)
+    stories = read.stories; textless = read.textless; warnings.push(...read.warnings)
   } else {
     const sections = text.split(/\n\s*-{3,}\s*\n|\n(?=#{1,3}\s)/).filter(s => s.trim())
     stories = sections.map(section => {
