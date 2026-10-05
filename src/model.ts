@@ -192,6 +192,21 @@ function tableStories(table: Table, series: Series) {
   return { stories, warnings, textless: false }
 }
 
+/**
+ * Pasted copy split into its stories: at a line of dashes (Google Docs can turn --- into — or –), at a
+ * Markdown heading, or at a Title: line once the story before it has begun.
+ */
+function docSections(text: string) {
+  const sections: string[][] = [[]]
+  for (const raw of text.split('\n')) {
+    const line = raw.trim(), current = sections[sections.length - 1]
+    if (/^(?:-{3,}|[–—][-–—]*)$/.test(line)) { sections.push([]); continue }
+    const startsStory = /^#{1,3}\s/.test(line) || /^(?:title|headline)\s*:/i.test(line)
+    if (startsStory && current.some(l => l.trim())) sections.push([raw]); else current.push(raw)
+  }
+  return sections.map(lines => lines.join('\n')).filter(section => section.trim())
+}
+
 export function parseImport(input: string | Table, series: Series = 'picks'): { stories: Story[]; warnings: string[] } {
   const warnings: string[] = []
   let stories: Story[] = [], textless = false
@@ -204,8 +219,7 @@ export function parseImport(input: string | Table, series: Series = 'picks'): { 
     const read = tableStories(table, series)
     stories = read.stories; textless = read.textless; warnings.push(...read.warnings)
   } else {
-    const sections = text.split(/\n\s*-{3,}\s*\n|\n(?=#{1,3}\s)/).filter(s => s.trim())
-    stories = sections.map(section => {
+    stories = docSections(text).map(section => {
       const s = blankStory()
       const body: string[] = []
       let readingBody = false
@@ -218,7 +232,8 @@ export function parseImport(input: string | Table, series: Series = 'picks'): { 
           if (key === 'body') body.push(field[2]); else (s as any)[key] = field[2]
         } else if (!s.title && line) { s.title = line.replace(/^#{1,3}\s+/, ''); readingBody = true }
         else if (/^@[\w.]+$/.test(line) && !s.handle) { s.handle = line; readingBody = false }
-        else if (readingBody || line) body.push(raw)
+        // Once the text has started, an empty line between paragraphs stays a paragraph break.
+        else if (readingBody || line) { body.push(raw); if (line) readingBody = true }
       }
       s.body = body.join('\n').trim()
       return s

@@ -51,6 +51,22 @@ describe('importing editorial content', () => {
     const { stories } = parseImport('Title,Description,Instagram Link,Location\n"Music, after dark","First line\nSecond line",https://www.instagram.com/thevenue/,Dublin')
     expect(stories[0]).toMatchObject({ title:'Music, after dark', body:'First line\nSecond line', handle:'@thevenue', venue:'Dublin' })
   })
+  it('reads a guide doc pasted from Google Docs: dashes Docs changed, Title: lines, paragraphs kept', () => {
+    const doc = [
+      'Title: Pretty Good Improv x Failed State', 'Instagram: @the_pearse_centre', 'Date: 9 Oct', 'Time: 8pm', 'Venue: The Pearse Centre', 'Text:',
+      'Looking for a fun night of comedy in Dublin?', '', 'Doors open at 7:30pm and the show starts at 8pm.',
+      '—',
+      'Title: Lord of the Rings Quiz at Token', 'Instagram: @tokendublin', '', 'Think you know everything about Middle-earth?', '', 'It’s the perfect excuse to get together.',
+      'Title: New bakery on Capel Street', 'Instagram: @thebakery', 'Text: Fresh sourdough every morning.',
+    ].join('\n')
+    const { stories } = parseImport(doc, 'new')
+    expect(stories.map(s => s.title)).toEqual(['Pretty Good Improv x Failed State', 'Lord of the Rings Quiz at Token', 'New bakery on Capel Street'])
+    expect(stories[0]).toMatchObject({ handle: '@the_pearse_centre', date: '9 Oct', time: '8pm', venue: 'The Pearse Centre', body: 'Looking for a fun night of comedy in Dublin?\n\nDoors open at 7:30pm and the show starts at 8pm.' })
+    // Text after the detail lines, with no Text: label, keeps its paragraph break too.
+    expect(stories[1].body).toBe('Think you know everything about Middle-earth?\n\nIt’s the perfect excuse to get together.')
+    expect(stories[2]).toMatchObject({ handle: '@thebakery', body: 'Fresh sourdough every morning.' })
+    expect(parseImport('Title: One\nText: A.\n—-\nTitle: Two\nText: B.').stories.map(s => s.title)).toEqual(['One', 'Two'])
+  })
   it('recognises headings and flags missing fields for review', () => {
     const { stories,warnings }=parseImport('# First story\nA paragraph\n## Second story')
     expect(stories.map(s=>s.title)).toEqual(['First story','Second story'])

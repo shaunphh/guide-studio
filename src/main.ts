@@ -494,7 +494,31 @@ function openNew(){
   modal('Start a new guide',`<label class="field"><span>Guide name</span><input id="new-name" placeholder="This week’s picks"></label><label class="field"><span>Series</span><select id="new-series"><option value="picks">Event Guide Picks</option><option value="new">What’s New in Dublin</option></select></label><label class="restore-style"><input id="new-sample" type="checkbox"> Start from the sample pages</label><p class="muted">Your current guide stays saved in My guides.</p>`,`<button id="create-guide" class="primary">Create guide ${icon('arrow')}</button>`)
   get('create-guide').onclick=()=>{const sample=get<HTMLInputElement>('new-sample').checked,next=makeIssue(get<HTMLSelectElement>('new-series').value as Series,sample);next.name=get<HTMLInputElement>('new-name').value.trim()||(sample?'Sample guide':'Untitled guide');library.issues.push(next);library.activeId=next.id;selected='cover';get<HTMLDialogElement>('modal').close();resetHistory();markSave();renderShell()}
 }
-const IMPORT_EXAMPLE=`Title: A night of live music\nBody: A candlelit evening of acoustic music, with a different line-up every week.\n\nBring a friend and discover your next favourite artist.\nHandle: @therubysessions\nDate: 6 Oct\nTime: 8:30pm\nVenue: Doyle’s Bar\n---\nTitle: Something new in the neighbourhood\nBody: Paste the next story here. Every section becomes an editable page.\nHandle: @alternativedublin`
+/** A guide doc as the team can start one: Import copy reads it as pasted from Google Docs (5 Oct 2026). */
+const DOC_TEMPLATE=`Title: Pretty Good Improv x Failed State
+Instagram: @the_pearse_centre
+Date: 9 Oct
+Time: 8pm
+Venue: The Pearse Centre
+Text:
+Looking for a fun night of comedy in Dublin? Two of the city’s newest improv nights are joining forces for a special October show.
+
+Doors open at 7:30pm and the show starts at 8pm. Grab your friends and see what happens when the performers make it all up on the spot!
+
+Title: The next story’s title
+Instagram: @theirhandle
+Text:
+The story goes here, about 500 characters. Leave an empty line between paragraphs.`
+const IMPORT_EXAMPLE=DOC_TEMPLATE
+/** How to lay out a guide doc so it comes in cleanly, in Import copy. */
+const DOC_GUIDE=`<details class="sheet-guide"><summary>How to set up the doc</summary><ol>
+<li><b>One guide per doc,</b> its stories in order. Picks can come from a doc like this, or straight from the events Sheet: tick TOP PICKS, write each pick’s text in a BLURB column, and load the Sheet’s link above. Tick TOP PICKS either way, so the website knows the picks.</li>
+<li><b>Each story starts with a Title: line,</b> then an Instagram: line, and Date:, Time: and Venue: lines if it’s an event. Leave out what a story doesn’t need.</li>
+<li><b>Then Text:</b> and the story under it, about 500 characters. Leave an empty line between paragraphs. Bold and italics from the doc don’t come through, so write <code>**bold**</code> and <code>_italic_</code>.</li>
+<li><b>The next story starts at its own Title: line.</b> A line of dashes between stories works too.</li>
+<li><b>Copy the whole doc</b> (⌘ or Ctrl + A, then C) and paste it below. Photos go in here, after.</li></ol>
+<p><button id="copy-doc-template" class="text-button" type="button">Copy the template</button> <span id="copy-doc-status" class="copy-status" role="status" aria-live="polite"></span></p>
+<textarea id="doc-template" class="template-source" readonly hidden aria-label="The doc template">${DOC_TEMPLATE}</textarea></details>`
 /** How to lay out a Sheet so it comes in cleanly, in Import copy. */
 const SHEET_GUIDE=`<details class="sheet-guide"><summary>How to set up the Sheet</summary><ol>
 <li><b>Share it:</b> Share → General access → Anyone with the link → Viewer. The tool only reads it.</li>
@@ -511,7 +535,7 @@ const SHEET_GUIDE=`<details class="sheet-guide"><summary>How to set up the Sheet
 function openImport(){
   importResult=null
   const series=issue().series
-  modal('From copy to carousel.',`<div class="section-heading"><h3>From a Google Sheet</h3></div><label class="field sheet-field"><span>Google Sheet link</span><span class="sheet-row"><input id="sheet-link" type="url" inputmode="url" spellcheck="false" autocomplete="off" placeholder="https://docs.google.com/spreadsheets/d/…" value="${escape(savedSheetLink(series))}"><button id="load-sheet" class="secondary" type="button">Load Sheet</button></span></label><p id="sheet-status" class="field-note sheet-status">Paste the link to this week’s tab, as in the event guide.</p>${SHEET_GUIDE}<div class="rule"></div><div class="section-heading"><h3>Or from your doc</h3></div><p class="muted">Paste the stories: a title, then its text, with <b style="white-space:nowrap">---</b> between stories (and, if you like, lines for Handle, Date, Time and Venue). A CSV works too, the Sheet’s download (File → Download → CSV) among them.</p><div class="import-actions"><button id="use-example" class="text-button">Use an example</button><label class="text-button file-label">Choose CSV or text file<input id="import-file" type="file" accept=".txt,.csv,text/plain,text/csv" hidden></label></div><textarea id="import-text" rows="8" aria-label="Copy to import" placeholder="Title: Your first story&#10;Body: The story goes here…&#10;Handle: @thevenue&#10;---&#10;Title: Your next story"></textarea><div id="import-review"></div><label class="field"><span>Add the stories to</span><select id="import-target"><option value="new">A new ${seriesName(series)} guide</option><option value="current">This guide · keep existing pages</option></select></label>`,`<button id="review-import" class="primary">Review stories ${icon('arrow')}</button><button id="apply-import" class="primary" hidden>Add stories</button>`)
+  modal('From copy to carousel.',`<div class="section-heading"><h3>From a Google Sheet</h3></div><label class="field sheet-field"><span>Google Sheet link</span><span class="sheet-row"><input id="sheet-link" type="url" inputmode="url" spellcheck="false" autocomplete="off" placeholder="https://docs.google.com/spreadsheets/d/…" value="${escape(savedSheetLink(series))}"><button id="load-sheet" class="secondary" type="button">Load Sheet</button></span></label><p id="sheet-status" class="field-note sheet-status">Paste the link to this week’s tab, as in the event guide.</p>${SHEET_GUIDE}<div class="rule"></div><div class="section-heading"><h3>Or from your doc</h3></div><p class="muted">Copy the whole doc and paste it below. A CSV works too, the Sheet’s download (File → Download → CSV) among them.</p>${DOC_GUIDE}<div class="import-actions"><button id="use-example" class="text-button">Use an example</button><label class="text-button file-label">Choose CSV or text file<input id="import-file" type="file" accept=".txt,.csv,text/plain,text/csv" hidden></label></div><textarea id="import-text" rows="8" aria-label="Copy to import" placeholder="Title: Your first story&#10;Instagram: @thevenue&#10;Text:&#10;The story goes here…&#10;&#10;Title: Your next story"></textarea><div id="import-review"></div><label class="field"><span>Add the stories to</span><select id="import-target"><option value="new">A new ${seriesName(series)} guide</option><option value="current">This guide · keep existing pages</option></select></label>`,`<button id="review-import" class="primary">Review stories ${icon('arrow')}</button><button id="apply-import" class="primary" hidden>Add stories</button>`)
   const sheetStatus=(text:string,error=false)=>{const status=get('sheet-status');status.textContent=text;status.classList.toggle('error',error)}
   get('load-sheet').onclick=async()=>{
     const link=get<HTMLInputElement>('sheet-link').value,button=get<HTMLButtonElement>('load-sheet')
@@ -528,6 +552,7 @@ function openImport(){
   }
   get('sheet-link').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();get('load-sheet').click()}}
   get('use-example').onclick=()=>{get<HTMLTextAreaElement>('import-text').value=IMPORT_EXAMPLE;invalidateImport()}
+  get('copy-doc-template').onclick=async()=>{const source=get<HTMLTextAreaElement>('doc-template'),status=get('copy-doc-status');try{await navigator.clipboard.writeText(source.value);status.textContent='Copied. Paste it into a new Google Doc.'}catch{source.hidden=false;source.focus();source.select();status.textContent='Selected below: press ⌘C or Ctrl+C to copy.'}}
   get<HTMLInputElement>('import-file').onchange=async e=>{const f=(e.target as HTMLInputElement).files?.[0];if(f){if(f.size>2*1024*1024)return toast('Choose a text file smaller than 2 MB.',true);get<HTMLTextAreaElement>('import-text').value=await f.text();invalidateImport()}}
   get('import-text').oninput=invalidateImport
   get('review-import').onclick=()=>{
