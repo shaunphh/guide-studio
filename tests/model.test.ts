@@ -77,6 +77,12 @@ describe('importing editorial content', () => {
     const both = parseImport(SHEET.replace('TOP PICKS', 'TOP PICKS,DESCRIPTION,BLURB').split('\n').map((row, i) => i === 2 ? `${row},Improv tonight.,"Two improv nights, one stage."` : i ? `${row},,` : row).join('\n'), 'picks')
     expect(both.stories[0].body).toBe('Two improv nights, one stage.')
   })
+  it('leaves out a pick whose STATUS says Cancelled or Postponed, as the event guide does', () => {
+    const withStatus = SHEET.replace('TOP PICKS', 'TOP PICKS,STATUS').split('\n').map((row, i) => i === 2 ? `${row},Cancelled` : i ? `${row},` : row).join('\n')
+    const { stories, warnings } = parseImport(withStatus, 'picks')
+    expect(stories.map(s => s.title)).toEqual(['Lord of the Rings Quiz'])
+    expect(warnings[0]).toBe('1 of the Sheet’s 2 approved events is ticked TOP PICKS.')
+  })
   it('says where What’s New stories come from, and when nothing is ticked', () => {
     expect(() => parseImport(SHEET, 'new')).toThrow('That’s the events Sheet, which has no What’s New column.')
     expect(() => parseImport(SHEET.replace(/TRUE\n/g, 'FALSE\n').replace(/TRUE$/, 'FALSE'), 'picks')).toThrow('No approved rows have TOP PICKS ticked.')

@@ -167,7 +167,7 @@ function eventSheetStories(table: Table, series: Series) {
   // BLURB is the Instagram text; the Sheet's DESCRIPTION is the website's one or two sentences, so it is only a start.
   const blurb = ['blurb', 'text', 'body', 'copy', 'story', 'description'].map(name => keys.indexOf(name)).find(index => index >= 0) ?? -1
   const stories: Story[] = picked.map((event: { title: string; instagram: string; date: Date; time: string; venue: string; sourceRow: number }) => ({ ...blankStory(), title: event.title, body: blurb >= 0 ? string(table.rows[event.sourceRow - 2]?.[blurb]).trim() : '', handle: event.instagram, date: `${event.date.getDate()} ${MONTH_NAMES[event.date.getMonth()]}`, time: footerTime(event.time), venue: event.venue }))
-  const warnings = [`${picked.length} of the Sheet’s ${events.length} approved events are ticked ${series === 'picks' ? 'TOP PICKS' : 'What’s New'}.`]
+  const warnings = [`${picked.length} of the Sheet’s ${events.length} approved events ${picked.length === 1 ? 'is' : 'are'} ticked ${series === 'picks' ? 'TOP PICKS' : 'What’s New'}.`]
   if (blurb < 0) warnings.push('The Sheet has no Blurb column, so each story’s text is written here.')
   return { stories, warnings, textless: blurb < 0 }
 }

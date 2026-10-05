@@ -135,6 +135,8 @@ export function mapHeaders(headers) {
     topPick: find((header) => header.includes("toppick")),
     comments: find((header) => header === "comments" || header === "comment"),
     whatsNew: find((header) => header.includes("whatsnew")),
+    // STATUS, as the website reads it: blank, Cancelled, Postponed or Sold out (the Events Sheet Guide).
+    status: find((header) => header === "status"),
   };
 }
 
@@ -287,6 +289,17 @@ function validHttpUrl(value) {
   }
 }
 
+/**
+ * Why a row's STATUS keeps it out (the event guide's rule, 5 Oct 2026): a cancelled or postponed event
+ * doesn't go out; sold out still does. Empty for anything else.
+ */
+export function offTheListing(status) {
+  const value = String(status ?? "").trim().toLowerCase();
+  if (/^cancel+ed\b/.test(value)) return "cancelled";
+  if (/^postponed\b/.test(value)) return "postponed";
+  return "";
+}
+
 export function normalizeRows({ headers, rows }, options = {}) {
   const indices = mapHeaders(headers);
   if (indices.date < 0) indices.date = inferDateColumn(headers, rows, indices.title);
@@ -355,8 +368,10 @@ export function normalizeRows({ headers, rows }, options = {}) {
     const parsedDate = rawDate ? parseDateValue(rawDate, yearCursor) : null;
     const title = cell(row, indices.title);
     const approved = hasApprovalColumn ? asBoolean(cell(row, indices.approved)) : true;
+    const offStatus = offTheListing(cell(row, indices.status));
     let reason = "";
     if (!approved) reason = "not approved";
+    else if (offStatus) reason = offStatus;
     else if (!rawDate || !parsedDate) reason = "missing or invalid date";
     else if (!title) reason = "missing event name";
     if (reason) {
