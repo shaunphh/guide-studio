@@ -8,7 +8,7 @@ import tokens from './ad-tokens.json'
 import { STEMS } from './barlow'
 
 interface Token { name: string; value: string }
-interface Style { name: string; fontSize: string; lineHeight: number | string; letterSpacing?: string; fontWeight: number }
+interface Style { name: string; family?: string; fontSize: string; lineHeight: number | string; letterSpacing?: string; fontWeight: number }
 type Family = 'color' | 'spacing' | 'size' | 'weight' | 'opacity' | 'tape'
 
 /** A token's value as written in the file. */
@@ -25,15 +25,17 @@ export const toolWeight = (stem: number) => Number(Object.entries(STEMS).find(([
 
 /**
  * A type style: size in px, line height as a multiple of the size, tracking as a share of the
- * size, the weight as the tools write it, and `stem`, the weight on the variable font's own scale.
+ * size, the weight as the tools write it, `stem`, the weight on the variable font's own scale, and
+ * whether it is set Condensed (the style's family, or its group's, is barlow-condensed).
  */
 export function adStyle(name: string) {
-  const entry = (tokens.type.groups as { styles: Style[] }[]).flatMap((group) => group.styles).find((style) => style.name === name)
-  if (!entry) throw new Error(`ad-tokens.json has no type style "${name}"`)
+  const group = (tokens.type.groups as { family?: string; styles: Style[] }[]).find((entry) => entry.styles.some((style) => style.name === name))
+  const entry = group?.styles.find((style) => style.name === name)
+  if (!group || !entry) throw new Error(`ad-tokens.json has no type style "${name}"`)
   const size = Number.parseFloat(entry.fontSize)
   const lineHeight = typeof entry.lineHeight === 'number' ? entry.lineHeight : Number.parseFloat(entry.lineHeight) / size
   const tracking = entry.letterSpacing ? Number.parseFloat(entry.letterSpacing) : 0
-  return { size, lineHeight, tracking, weight: toolWeight(entry.fontWeight), stem: entry.fontWeight }
+  return { size, lineHeight, tracking, weight: toolWeight(entry.fontWeight), stem: entry.fontWeight, condensed: (entry.family ?? group.family) === 'barlow-condensed' }
 }
 
 const hex = (name: string) => adValue('color', name).toUpperCase()

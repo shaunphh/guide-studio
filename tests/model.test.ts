@@ -81,17 +81,22 @@ describe('saved projects', () => {
     expect(sanitizeIssue(JSON.parse(JSON.stringify(next))).cover.backgrounds.new).toEqual({x:190,y:380,width:700,height:640})
   })
   it('adopts the latest title size and light-body colour once, then preserves later edits', () => {
-    expect(sanitizeBrand({...BASE_BRAND,revision:2,titleSize:54,lightBody:'#171717',titleWeight:174})).toMatchObject({revision:7,titleSize:69,lightBody:'#4b4a4a',titleWeight:168,dateWeight:166})
+    expect(sanitizeBrand({...BASE_BRAND,revision:2,titleSize:54,lightBody:'#171717',titleWeight:174})).toMatchObject({revision:8,titleSize:64,lightBody:'#4b4a4a',titleWeight:168,dateWeight:166})
     expect(sanitizeBrand({...BASE_BRAND,titleSize:72,lightBody:'#454545'})).toMatchObject({titleSize:72,lightBody:'#454545'})
   })
-  it('takes the shared AD palette and 540px pictures once, then keeps House style edits', () => {
+  it('takes the shared AD palette and pictures once, then keeps House style edits', () => {
     const saved={...BASE_BRAND,revision:3,yellow:'#ffef3a',dark:'#171717',darkBody:'#d2d2d2',imageHeight:530,titleWeight:174,dateWeight:178}
     const next=sanitizeBrand(saved)
-    expect(next).toMatchObject({revision:7,yellow:'#ffed1f',dark:'#101010',darkBody:'#c2c2c2',light:'#f0f0f0',imageHeight:540,titleWeight:168,bodyWeight:400,dateWeight:166})
+    expect(next).toMatchObject({revision:8,yellow:'#ffed1f',dark:'#101010',darkBody:'#c2c2c2',light:'#f0f0f0',imageHeight:500,titleWeight:168,bodyWeight:400,dateWeight:166})
     expect(sanitizeBrand({...next,titleWeight:172,dateWeight:170})).toMatchObject({titleWeight:172,dateWeight:170})
     // Revision 6 kept its titles and takes the tag weight once.
-    expect(sanitizeBrand({...next,revision:6,titleWeight:172,dateWeight:178})).toMatchObject({revision:7,titleWeight:172,dateWeight:166})
-    expect(sanitizeBrand({...next,yellow:'#ffee00',imageHeight:500,bodyWeight:500})).toMatchObject({yellow:'#ffee00',imageHeight:500,bodyWeight:500})
+    expect(sanitizeBrand({...next,revision:6,titleWeight:172,dateWeight:178})).toMatchObject({revision:8,titleWeight:172,dateWeight:166})
+    expect(sanitizeBrand({...next,yellow:'#ffee00',imageHeight:520,bodyWeight:500})).toMatchObject({yellow:'#ffee00',imageHeight:520,bodyWeight:500})
+  })
+  it('takes the smaller story title and picture once (5 Oct 2026), then keeps House style edits', () => {
+    const saved={...BASE_BRAND,revision:7,titleSize:69,imageHeight:540,margin:60,titleWeight:172}
+    expect(sanitizeBrand(saved)).toMatchObject({revision:8,titleSize:64,imageHeight:500,margin:60,titleWeight:172})
+    expect(sanitizeBrand({...BASE_BRAND,titleSize:60,imageHeight:480})).toMatchObject({titleSize:60,imageHeight:480})
   })
   it('draws upright text from the variable font, except what it has no letters for', () => {
     expect(gxCovers('Ruby Sessions @ Doyle’s — 8:30pm · €10, Łukasz & Bożena, Dvořák, Éire')).toBe(true)

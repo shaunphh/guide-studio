@@ -7,14 +7,17 @@ import { adNumber, adStyle } from './adTokens'
 import { META_GREY, coverLook, coverPhoto, designUnlocked, handlesOf, pictureHeight, type Brand, type Crop, type Issue, type Story } from './model'
 
 export const WIDTH = 1080, HEIGHT = 1350
-/** Story text must end above this line, clear of the footer. */
-const BODY_BOTTOM = HEIGHT - 146
+/** A story page's spacing, tightened on 5 Oct 2026 so the stories the team writes fit under a two-line
+ *  title (it was 78 and 30, and the story stopped 146px from the foot whatever the footer held): the
+ *  title starts 70px under the picture, the story 10px under the title's last line, and the story keeps
+ *  36px clear of the top of the footer's first line. */
+const PICTURE_TO_TITLE = 70, TITLE_TO_BODY = 10, FOOTER_CLEAR = 36
 /** Tape Type's cover furniture (furniture.ts): marks and lettering keep 80px from every edge; the logo is 210 wide, the arrow 100. */
 // From the shared AD tokens (ad-tokens.json): the cover's safe area and its marks, as on Tape Type's covers.
 const SAFE = adNumber('spacing', 'safe-cover'), LOGO_WIDTH = adNumber('size', 'logo-cover'), ARROW_WIDTH = adNumber('size', 'arrow')
-/** The AD footer style, shared with the Event Guide: Bold, the names in ink, dates and details in the meta grey. */
+/** The AD footer style, shared with the Event Guide: Condensed Bold (5 Oct 2026), the names in ink, dates and details in the meta grey. */
 const footer = adStyle('footer')
-const FOOTER = { size: footer.size, weight: footer.weight, step: Math.round(footer.size * footer.lineHeight) }
+const FOOTER = { size: footer.size, weight: footer.weight, step: Math.round(footer.size * footer.lineHeight), face: footer.condensed ? 'Barlow GX Condensed' : 'Barlow GX Normal' }
 /** Tape Type's inside-page label (inside.ts): ExtraBold at the body size, on tape with a clean cut of its own. */
 const LABEL = { size: adStyle('label').size, weight: adStyle('label').weight }
 /** Carousel covers: the headline's and the supporting line's weights. */
@@ -41,7 +44,7 @@ export function loadImage(url: string) {
   return promise
 }
 export async function loadFonts() {
-  const faces = [...[400,500,600,700,800,900].map(w => `${w} 38px Barlow`), ...[400,500,700].map(w => `italic ${w} 38px Barlow`), ...[71,96,141,166,178,188].map(w => `${w} 54px "Barlow GX Normal"`)]
+  const faces = [...[400,500,600,700,800,900].map(w => `${w} 38px Barlow`), ...[400,500,700].map(w => `italic ${w} 38px Barlow`), ...[71,96,141,166,178,188].map(w => `${w} 54px "Barlow GX Normal"`), `${footer.stem} ${FOOTER.size}px "${FOOTER.face}"`]
   await Promise.all(faces.map(face => document.fonts.load(face)))
   if (!faces.every(face => document.fonts.check(face))) throw new Error('The brand fonts could not load. Reload before exporting.')
 }
@@ -55,6 +58,11 @@ function variableFont(ctx: CanvasRenderingContext2D, size: number, weight: numbe
   // This font has Event-guide's Normal width baked in; title/date tracking is always zero.
   ctx.font = gxCovers(text) ? `${weight} ${size}px "Barlow GX Normal"` : `${nearestStatic(weight)} ${size}px Barlow`; ctx.textBaseline = 'alphabetic'
   if (typeof (ctx as { letterSpacing?: unknown }).letterSpacing === 'string') ctx.letterSpacing = '0px'
+}
+/** The footer's lettering, in the shared footer style; a run the variable font can't draw falls back to the static Barlow. */
+function footerFont(ctx: CanvasRenderingContext2D, text = '') {
+  ctx.font = gxCovers(text) ? `${footer.stem} ${FOOTER.size}px "${FOOTER.face}"` : `${FOOTER.weight} ${FOOTER.size}px Barlow`
+  ctx.textBaseline = 'alphabetic'
 }
 export const trackedWidth = (ctx: CanvasRenderingContext2D, text: string, tracking: number) => ctx.measureText(text).width + Math.max(0, Array.from(text).length - 1) * tracking
 /** Native letter spacing preserves kerning. Prefix measurements provide the older-browser fallback. */
@@ -162,38 +170,58 @@ export async function renderPage(canvas: HTMLCanvasElement, issue: Issue, page: 
   return { errors: [...new Set(errors)], background, headline }
 }
 
+/** Lines as even as they'll go: the narrowest measure that still takes no more lines, so a title
+ *  breaks PRETTY GOOD IMPROV X / FAILED STATE, not with one word left on a line of its own. */
+function balancedWrap(ctx: CanvasRenderingContext2D, text: string, width: number) {
+  const count = wrap(ctx, text, width).length
+  if (count < 2) return wrap(ctx, text, width)
+  let narrow = 0, wide = width
+  for (let i = 0; i < 14; i++) { const middle = (narrow + wide) / 2; if (wrap(ctx, text, middle).length <= count) wide = middle; else narrow = middle }
+  return wrap(ctx, text, wide)
+}
+
+/** Where a story page's parts go: drawStory draws from it and the sample copy is measured against it. */
+function storyLayout(ctx: CanvasRenderingContext2D, s: Story, issue: Issue, brand: Brand) {
+  const h = pictureHeight(s, brand), m = brand.margin, w = WIDTH - 2*m
+  variableFont(ctx, brand.titleSize, brand.titleWeight, s.title.toUpperCase())
+  const titleLines = balancedWrap(ctx, s.title.toUpperCase(), w)
+  const titleTop = h + PICTURE_TO_TITLE
+  const bodyTop = titleTop + titleLines.length * brand.titleSize * 1.02 + TITLE_TO_BODY
+  // The footer: handles on the left, two stacking one to a line, as two lines of details do on the right.
+  const info = issue.series === 'picks' ? [s.date, s.time, s.venue].filter(Boolean).join(' · ') : ''
+  const handles = handlesOf(s.handle)
+  footerFont(ctx, s.handle)
+  const handleLines = handles.slice(0, 2).flatMap(handle => wrap(ctx, handle, info ? w * .47 : w))
+  footerFont(ctx, info)
+  const infoLines = info ? wrap(ctx, info, w * .49) : []
+  footerFont(ctx, 'H')
+  const footY = HEIGHT - 58, capHeight = ctx.measureText('H').actualBoundingBoxAscent || FOOTER.size * .7
+  const footerTop = footY - (Math.min(2, Math.max(1, handleLines.length, infoLines.length)) - 1) * FOOTER.step - capHeight
+  return { h, m, w, titleLines, titleTop, bodyTop, bodyBottom: footerTop - FOOTER_CLEAR, info, handles, handleLines, infoLines, footY }
+}
+
 function drawStory(ctx: CanvasRenderingContext2D, s: Story, number: number, issue: Issue, brand: Brand, assets: Record<string, HTMLImageElement>, errors: string[]) {
   const dark = issue.series === 'new', titleInk = dark ? brand.light : brand.dark, bodyInk = dark ? brand.darkBody : brand.lightBody
-  const h = pictureHeight(s, brand), m = brand.margin, w = WIDTH - 2*m
+  const layout = storyLayout(ctx, s, issue, brand), { h, m, w, titleLines, bodyTop, bodyBottom, info, handles, handleLines, infoLines, footY } = layout
   photo(ctx, assets[s.photo], s.crop, 0, 0, WIDTH, h)
   if (!s.photo) errors.push('Add a photo to this story.')
   if (!s.title.trim()) errors.push('Add a title to this story.')
   if (!s.body.trim()) errors.push('Add body text to this story.')
   drawNumber(ctx, String(number).padStart(2, '0'), m, h, brand)
   variableFont(ctx, brand.titleSize, brand.titleWeight, s.title.toUpperCase())
-  const titleLines = wrap(ctx, s.title.toUpperCase(), w)
   ctx.fillStyle = titleInk
-  let y = h + 78
-  for (const l of titleLines) { ctx.fillText(l, m, y + brand.titleSize * .72); y += brand.titleSize * 1.02 }
+  titleLines.forEach((l, i) => ctx.fillText(l, m, layout.titleTop + brand.titleSize * .72 + i * brand.titleSize * 1.02))
   if (titleLines.length > 3) errors.push('The headline is longer than three lines. Shorten it or adjust the house title size.')
-  y += 30
-  ctx.save(); ctx.beginPath(); ctx.rect(m, y, w, Math.max(0, BODY_BOTTOM - y)); ctx.clip()
-  const bottom = drawBody(ctx, s.body, m, y, w, brand, bodyInk, titleInk)
+  ctx.save(); ctx.beginPath(); ctx.rect(m, bodyTop, w, Math.max(0, bodyBottom - bodyTop)); ctx.clip()
+  const bottom = drawBody(ctx, s.body, m, bodyTop, w, brand, bodyInk, titleInk)
   ctx.restore()
-  if (bottom > BODY_BOTTOM) errors.push('The story runs into the footer. Shorten the copy.')
-  const footY = HEIGHT - 58
-  font(ctx, FOOTER.size, FOOTER.weight, false, s.handle); ctx.fillStyle = titleInk
-  const info = issue.series === 'picks' ? [s.date, s.time, s.venue].filter(Boolean).join(' · ') : ''
-  const footerWidth = info ? w * .47 : w
-  // Two handles stack, one to a line, as two lines of details do on the right.
-  const handles = handlesOf(s.handle)
+  if (bottom > bodyBottom) errors.push('The story runs into the footer. Shorten the copy.')
+  footerFont(ctx, s.handle); ctx.fillStyle = titleInk
   if (handles.length > 2) errors.push('Keep it to two handles.')
-  const handleLines = handles.slice(0, 2).flatMap(handle => wrap(ctx, handle, footerWidth))
   if (handleLines.length > 2) errors.push('The handles are too long for the footer.')
   handleLines.slice(0,2).forEach((l,i) => ctx.fillText(l,m,footY-(handleLines.length > 1 ? FOOTER.step : 0)+i*FOOTER.step))
   if (info) {
-    ctx.fillStyle = META_GREY; font(ctx, FOOTER.size, FOOTER.weight, false, info)
-    const infoLines = wrap(ctx, info, w * .49)
+    ctx.fillStyle = META_GREY; footerFont(ctx, info)
     if (infoLines.length > 2) errors.push('The event details are too long for the footer.')
     ctx.textAlign = 'right'
     infoLines.slice(0,2).forEach((l,i) => ctx.fillText(l,WIDTH-m,footY-(infoLines.length > 1 ? FOOTER.step : 0)+i*FOOTER.step))
@@ -400,18 +428,16 @@ const CLOSERS = ['Booking is advised.', 'Bring a friend.', 'Don’t miss it.', '
 export function fillPreviewText(issue: Issue, brand: Brand) {
   const ctx=document.createElement('canvas').getContext('2d')!
   issue.stories.forEach((story,index)=>{
-    variableFont(ctx,brand.titleSize,brand.titleWeight,story.title.toUpperCase())
-    const width=WIDTH-brand.margin*2,lines=wrap(ctx,story.title.toUpperCase(),width).length
-    const top=pictureHeight(story,brand)+78+lines*brand.titleSize*1.02+30
+    const {bodyTop:top,bodyBottom:end,w:width}=storyLayout(ctx,story,issue,brand)
     const paragraphs: string[][]=[[]]
     const text=()=>paragraphs.filter(p=>p.length).map(p=>p.join(' ')).join('\n\n')
     const bottom=()=>drawBody(ctx,text(),brand.margin,top,width,brand,'#000','#000',false)
     const add=(sentence: string)=>{
       const paragraph=paragraphs[paragraphs.length-1]
       paragraph.push(sentence)
-      if(bottom()>BODY_BOTTOM)paragraph.pop()
+      if(bottom()>end)paragraph.pop()
     }
-    const middle=(top+BODY_BOTTOM)/2
+    const middle=(top+end)/2
     for(const sentence of SAMPLE_COPY[index%SAMPLE_COPY.length]){
       // Two-paragraph pages break at the sentence that ends closest to halfway down the room.
       if(index%2&&paragraphs.length===1&&paragraphs[0].length){

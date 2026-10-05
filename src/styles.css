@@ -3,6 +3,8 @@
 @font-face{font-family:Barlow;src:url('/fonts/barlow-500-italic.woff2') format('woff2');font-weight:500;font-style:italic;font-display:block}
 @font-face{font-family:Barlow;src:url('/fonts/barlow-700-italic.woff2') format('woff2');font-weight:700;font-style:italic;font-display:block}
 @font-face{font-family:'Barlow GX Normal';src:url('/fonts/BarlowGX-Normal.ttf') format('truetype');font-weight:22 188;font-style:normal;font-display:block}
+/* The same variable font at its Condensed width (the event guide's instance): the footer, since 5 Oct 2026. */
+@font-face{font-family:'Barlow GX Condensed';src:url('/fonts/BarlowGX-Condensed.ttf') format('truetype');font-weight:22 188;font-style:normal;font-display:block}
 @font-face{font-family:Barlow;src:url('/fonts/barlow-600.woff2') format('woff2');font-weight:600;font-display:block}
 @font-face{font-family:Barlow;src:url('/fonts/barlow-700.woff2') format('woff2');font-weight:700;font-display:block}
 @font-face{font-family:Barlow;src:url('/fonts/barlow-800.woff2') format('woff2');font-weight:800;font-display:block}
