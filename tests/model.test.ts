@@ -67,6 +67,29 @@ describe('importing editorial content', () => {
     expect(stories[2]).toMatchObject({ handle: '@thebakery', body: 'Fresh sourdough every morning.' })
     expect(parseImport('Title: One\nText: A.\n—-\nTitle: Two\nText: B.').stories.map(s => s.title)).toEqual(['One', 'Two'])
   })
+  it('reads the weekly What’s New doc as the team writes it: ✅ stories only, their Text, none of the notes', () => {
+    // Shaped like WNID WK41 (Oct 2026): a traffic-light key, notes under the status headings, two Texts.
+    const doc = [
+      'WNID WK41', '📰 What’s New in Dublin: October', '🕔 Deadline: All stories must be ready for correction by Wednesday, 1 pm', '',
+      'Traffic Light Key:', '🔴 Red = Not Started', '🟠 Orange = Waiting for Review', '✅ Green = Done', '❌ Deleted', '',
+      'How to find stories!', 'https://alidunworth.substack.com/', 'READ THIS ^', '',
+      '✅Piglet Wine Bar’s Last Service', '', 'Written by: Alba', '', 'Brief: ✨Last Service 12th October!', '', '📍5 Cow’s Lane, Temple Bar', 'Wed - Sat', '',
+      'Link: https://www.instagram.com/p/Ddzce3EoYKI/', '', 'Instagram:', '', 'Text: Piglet Wine Bar is closing.', '', 'Reservations strongly recommended.', '',
+      'Newsletter Text: Piglet Wine Bar has closed.', '',
+      '🟠Dublin City Council’s plans to ban plastic bin bags', 'Written by: Chris', 'Text: The council plans…', 'Newsletter Text: The council plans…',
+      '✅ 333 festival is Returning', 'Written by: Alba', 'Instagram: 333.fest.d6', 'Text: 333 Festival is returning to The Devlin.', 'Newsletter Text:',
+      '✅Dublin Halloween Festival Launches', 'Written by: Fionn', 'Instagram: dublinhalloweenfestival.com', 'Text: The festival runs from October 10th to 31st.',
+    ].join('\n')
+    const { stories, warnings } = parseImport(doc, 'new')
+    expect(stories.map(s => s.title)).toEqual(['Piglet Wine Bar’s Last Service', '333 festival is Returning', 'Dublin Halloween Festival Launches'])
+    expect(stories[0]).toMatchObject({ handle: '', body: 'Piglet Wine Bar is closing.\n\nReservations strongly recommended.' })
+    expect(stories[1]).toMatchObject({ handle: '333.fest.d6', body: '333 Festival is returning to The Devlin.' })
+    expect(warnings).toContain('Left out 1 story not marked ✅: Dublin City Council’s plans to ban plastic bin bags.')
+    expect(warnings).toContain('Story 3’s Instagram line, dublinhalloweenfestival.com, looks like a website, not a handle.')
+    expect(() => parseImport(doc.replace(/✅(?!\s*Green)/gu, '🟠'), 'new')).toThrow('None of the doc’s stories is marked ✅ yet.')
+    // A ✅ inside an ordinary guide doc is just text.
+    expect(parseImport('Title: Free gig\nText: Doors at 8.\n✅ Free entry').stories[0].body).toBe('Doors at 8.\n✅ Free entry')
+  })
   it('recognises headings and flags missing fields for review', () => {
     const { stories,warnings }=parseImport('# First story\nA paragraph\n## Second story')
     expect(stories.map(s=>s.title)).toEqual(['First story','Second story'])

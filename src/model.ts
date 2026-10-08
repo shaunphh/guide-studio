@@ -193,15 +193,27 @@ function tableStories(table: Table, series: Series) {
 }
 
 /**
- * Pasted copy split into its stories: at a line of dashes (Google Docs can turn --- into — or –), at a
- * Markdown heading, or at a Title: line once the story before it has begun.
+ * The team's weekly What's New doc (WK41, Oct 2026): a heading per story marked ✅ done, 🟠 waiting for
+ * review, 🔴 not started or ❌ deleted, then Written by:, Brief:, Link:, Instagram:, Text: and Newsletter
+ * Text: lines, under a traffic-light key. Only the ✅ stories' Text goes on the slides.
  */
-function docSections(text: string) {
+const STATUS_LINE = /^([✅🟢☑✔🟠🟡🔴❌])️?\s*(.*)$/u
+const DONE = new Set(['✅', '🟢', '☑', '✔'])
+/** Notes for the team, not the slide: these lines and the ones under them stay out of the story. */
+const NOTE_LABEL = /^(?:newsletter(?: text)?|written by|brief|link)\s*:/i
+const statusDoc = (text: string) => text.split('\n').some(line => STATUS_LINE.test(line.trim())) && /^\s*(?:written by|brief|newsletter(?: text)?)\s*:/im.test(text)
+
+/**
+ * Pasted copy split into its stories: at a line of dashes (Google Docs can turn --- into — or –), at a
+ * Markdown heading, at a Title: line once the story before it has begun, or in the What's New doc at
+ * each status-marked heading.
+ */
+function docSections(text: string, statuses = false) {
   const sections: string[][] = [[]]
   for (const raw of text.split('\n')) {
     const line = raw.trim(), current = sections[sections.length - 1]
     if (/^(?:-{3,}|[–—][-–—]*)$/.test(line)) { sections.push([]); continue }
-    const startsStory = /^#{1,3}\s/.test(line) || /^(?:title|headline)\s*:/i.test(line)
+    const startsStory = /^#{1,3}\s/.test(line) || /^(?:title|headline)\s*:/i.test(line) || (statuses && STATUS_LINE.test(line))
     if (startsStory && current.some(l => l.trim())) sections.push([raw]); else current.push(raw)
   }
   return sections.map(lines => lines.join('\n')).filter(section => section.trim())
@@ -219,25 +231,39 @@ export function parseImport(input: string | Table, series: Series = 'picks'): { 
     const read = tableStories(table, series)
     stories = read.stories; textless = read.textless; warnings.push(...read.warnings)
   } else {
-    stories = docSections(text).map(section => {
+    const statuses = statusDoc(text)
+    const read = docSections(text, statuses).map(section => {
       const s = blankStory()
       const body: string[] = []
-      let readingBody = false
+      let readingBody = false, inNote = false, labelled = false, status = ''
       for (const raw of section.trim().split('\n')) {
         const line = raw.trim()
         const field = /^(title|headline|name|body|text|description|handle|instagram|date|time|venue|location)\s*:\s*(.*)$/i.exec(line)
         if (field) {
           const key = ({ headline:'title', name:'title', text:'body', description:'body', instagram:'handle', location:'venue' } as Record<string,string>)[field[1].toLowerCase()] ?? field[1].toLowerCase()
-          readingBody = key === 'body'
+          readingBody = key === 'body'; inNote = false; labelled = true
           if (key === 'body') body.push(field[2]); else (s as any)[key] = field[2]
-        } else if (!s.title && line) { s.title = line.replace(/^#{1,3}\s+/, ''); readingBody = true }
+        } else if (statuses && NOTE_LABEL.test(line)) { readingBody = false; inNote = labelled = true }
+        else if (!s.title && line) {
+          const marked = statuses ? STATUS_LINE.exec(line) : null
+          if (marked) status = marked[1]
+          s.title = marked ? marked[2] : line.replace(/^#{1,3}\s+/, ''); readingBody = true
+        }
+        else if (inNote) continue
         else if (/^@[\w.]+$/.test(line) && !s.handle) { s.handle = line; readingBody = false }
         // Once the text has started, an empty line between paragraphs stays a paragraph break.
         else if (readingBody || line) { body.push(raw); if (line) readingBody = true }
       }
       s.body = body.join('\n').trim()
-      return s
+      return { s, status, labelled }
     })
+    // In the What's New doc the key and the notes above the first story carry no labels, and a story
+    // waits for the next import until it's ✅.
+    const marked = statuses ? read.filter(r => r.status && r.labelled) : read
+    const waiting = statuses ? marked.filter(r => !DONE.has(r.status)) : []
+    stories = marked.filter(r => !waiting.includes(r)).map(r => r.s)
+    if (waiting.length) warnings.push(`Left out ${waiting.length} ${waiting.length === 1 ? 'story' : 'stories'} not marked ✅: ${waiting.map(r => r.s.title).join('; ')}.`)
+    if (statuses && marked.length && !stories.length) throw new Error('None of the doc’s stories is marked ✅ yet.')
   }
   if (stories.length > 40) throw new Error('Import up to 40 stories at a time.')
   if (!stories.length) throw new Error('No stories found. Use a title and paragraph, with --- between stories.')
@@ -246,6 +272,7 @@ export function parseImport(input: string | Table, series: Series = 'picks'): { 
     if (!s.body && !textless) warnings.push(`Story ${i + 1} needs body text.`)
     // Instagram links become handles; a row may name two.
     s.handle = s.handle.split(/[\s,]+/).filter(Boolean).map(part => { if (!/^https?:\/\//.test(part)) return part; try { return '@' + new URL(part).pathname.split('/').filter(Boolean)[0] } catch { return part /* Kept for review. */ } }).join(' ')
+    if (/^[\w-]+(?:\.[\w-]+)*\.(?:com|ie|net|org|eu|io|co\.uk)$/i.test(s.handle)) warnings.push(`Story ${i + 1}’s Instagram line, ${s.handle}, looks like a website, not a handle.`)
   })
   warnings.push('Add a photo to each imported story before exporting.')
   return { stories, warnings }

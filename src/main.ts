@@ -513,8 +513,9 @@ const IMPORT_EXAMPLE=DOC_TEMPLATE
 /** How to lay out a guide doc so it comes in cleanly, in Import copy. */
 const DOC_GUIDE=`<details class="sheet-guide"><summary>How to set up the doc</summary><ol>
 <li><b>One guide per doc,</b> its stories in order. Picks can come from a doc like this, or straight from the events Sheet: tick TOP PICKS, write each pick’s text in a BLURB column, and load the Sheet’s link above. Tick TOP PICKS either way, so the website knows the picks.</li>
+<li><b>The weekly What’s New doc works as it is:</b> the stories marked ✅ come in with their Text. 🟠, 🔴 and ❌ stories wait for the next paste, and Written by, Brief, Link and Newsletter Text stay out.</li>
 <li><b>Each story starts with a Title: line,</b> then an Instagram: line, and Date:, Time: and Venue: lines if it’s an event. Leave out what a story doesn’t need.</li>
-<li><b>Then Text:</b> and the story under it, about 500 characters. Leave an empty line between paragraphs. Bold and italics from the doc don’t come through, so write <code>**bold**</code> and <code>_italic_</code>.</li>
+<li><b>Then Text:</b> and the story under it, 80 to 90 words, or about 80 under a headline that runs to three lines. Leave an empty line between paragraphs. Bold and italics from the doc don’t come through, so write <code>**bold**</code> and <code>_italic_</code>.</li>
 <li><b>The next story starts at its own Title: line.</b> A line of dashes between stories works too.</li>
 <li><b>Copy the whole doc</b> (⌘ or Ctrl + A, then C) and paste it below. Photos go in here, after.</li></ol>
 <p><button id="copy-doc-template" class="text-button" type="button">Copy the template</button> <span id="copy-doc-status" class="copy-status" role="status" aria-live="polite"></span></p>
