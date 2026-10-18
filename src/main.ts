@@ -176,7 +176,7 @@ function activeBounds() {
   return issue().cover.backgrounds[issue().series] || (lastBoundsKey===`${issue().id}:${issue().series}`?lastCoverBounds:undefined)
 }
 function boundsPanel() {
-  return `<div class="bounds-panel"><button id="toggle-bounds" class="secondary" aria-pressed="${boundsMode}">${boundsMode?'Hide bounding box':'Adjust tape background'}</button>
+  return `<div class="bounds-panel"><button id="toggle-bounds" class="secondary" aria-pressed="${boundsMode}">${boundsMode?'Hide bounding box':'Adjust tape background'}</button><p id="box-note" class="field-note"></p>
   ${boundsMode?`<p class="field-note">Drag the box to move the background, or use its handles to resize. The headline stays in place. Measurements are on the 1080 × 1350 canvas.</p><div class="bounds-fields">${(['x','y','width','height'] as const).map((key,i)=>`<label class="field"><span>${['X · left','Y · top','Width','Height'][i]}</span><input type="number" data-bounds="${key}" aria-label="Background ${key}" step="1" min="${i<2?0:100}" max="${key==='x'||key==='width'?1080:1350}"></label>`).join('')}</div><textarea id="bounds-values" aria-label="Background values" readonly rows="2"></textarea><div class="bounds-actions"><button id="copy-bounds" class="text-button">Copy values</button><button id="reset-bounds" class="text-button">Reset this background</button></div><p class="field-note">Each series keeps its own background. The outline and handles stay out of exports.</p>`:''}</div>`
 }
 function syncBounds() {
@@ -377,7 +377,7 @@ async function drawAll(){
       if(token!==renderToken||!canvas.isConnected)return
       canvas.width=stage.width;canvas.height=stage.height;canvas.getContext('2d')!.drawImage(stage,0,0);currentErrors=result.errors;setFit(result.errors);setWords(result.fit)
       shownPage=`${snapshot.id}:${index===0?'cover':snapshot.stories[index-1].id}`
-      if(index===0){lastCoverBounds=result.background;lastHeadline=result.headline;lastBoundsKey=`${snapshot.id}:${snapshot.series}`;syncBounds()}
+      if(index===0){lastCoverBounds=result.background;lastHeadline=result.headline;lastBoundsKey=`${snapshot.id}:${snapshot.series}`;syncBounds();setBoxNote(result.cover)}
     }
   }catch(e){if(token===renderToken)setFit([(e as Error).message])}
   scheduleThumbs()
@@ -394,6 +394,14 @@ async function drawThumbs(){
     if(token!==thumbToken)return
     c.dataset.painted=revision
   }
+}
+/** Under Adjust tape background: a box set by hand, and the room it leaves around the lettering; red when any side is under 40px. */
+function setBoxNote(cover?: { handSet: boolean; room: { left: number; right: number; top: number; bottom: number } }) {
+  const el = document.getElementById('box-note'); if (!el || !cover) return
+  const r = cover.room, tight = Math.min(r.left, r.right, r.top, r.bottom) < 40
+  el.textContent = cover.handSet ? `Box set by hand: ${r.left} left, ${r.right} right, ${r.top} above and ${r.bottom} below the lettering.${tight ? ' That’s tight. Adjust tape background → Reset this background gives the house room (82 at the sides).' : ''}` : ''
+  el.hidden = !cover.handSet
+  el.classList.toggle('over', cover.handSet && tight)
 }
 /** Under the story field: the words, and the room the page has left for more, or how far over it runs. */
 function setWords(fit?: { words: number; room: number }) {

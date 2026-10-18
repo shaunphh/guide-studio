@@ -148,7 +148,8 @@ function photo(ctx: CanvasRenderingContext2D, img: HTMLImageElement | undefined,
 
 /** `headline` is the lettering's own box (before any custom background), for grabbing it on the canvas. */
 /** `fit`, on a story page: the words, and about how many more the room left would take (negative: how many over). */
-export type RenderResult = { errors: string[]; background?: CoverBounds; headline?: CoverBounds; fit?: { words: number; room: number } }
+/** `cover`, on the cover: whether the tape box was set by hand, and the room it leaves around the lettering on each side. */
+export type RenderResult = { errors: string[]; background?: CoverBounds; headline?: CoverBounds; fit?: { words: number; room: number }; cover?: { handSet: boolean; room: { left: number; right: number; top: number; bottom: number } } }
 export async function renderPage(canvas: HTMLCanvasElement, issue: Issue, page: number, brand: Brand, scale = 1): Promise<RenderResult> {
   const look = coverLook(issue, designUnlocked())
   const needed = page === 0 ? Array.from({length:look.count},(_,i)=>coverPhoto(issue,i)) : [issue.stories[page - 1]?.photo || '']
@@ -161,8 +162,8 @@ export async function renderPage(canvas: HTMLCanvasElement, issue: Issue, page: 
   const ctx = out.getContext('2d')!
   ctx.scale(scale, scale); ctx.textAlign = 'left'
   ctx.fillStyle = issue.series === 'picks' ? brand.light : brand.dark; ctx.fillRect(0,0,WIDTH,HEIGHT)
-  let background: CoverBounds | undefined, headline: CoverBounds | undefined, fit: RenderResult['fit']
-  if (page === 0) ({ background, headline } = drawCover(ctx, issue, brand, assets, errors))
+  let background: CoverBounds | undefined, headline: CoverBounds | undefined, fit: RenderResult['fit'], cover: RenderResult['cover']
+  if (page === 0) ({ background, headline, cover } = drawCover(ctx, issue, brand, assets, errors))
   else {
     const s = issue.stories[page - 1]
     if (!s) throw new Error('This page no longer exists.')
@@ -170,7 +171,7 @@ export async function renderPage(canvas: HTMLCanvasElement, issue: Issue, page: 
   }
   canvas.width = out.width; canvas.height = out.height
   canvas.getContext('2d')!.drawImage(out,0,0)
-  return { errors: [...new Set(errors)], background, headline, fit }
+  return { errors: [...new Set(errors)], background, headline, fit, cover }
 }
 
 /** Lines as even as they'll go: the narrowest measure that still takes no more lines, so a title
@@ -362,7 +363,11 @@ function drawCover(ctx: CanvasRenderingContext2D, issue: Issue, brand: Brand, as
     const dw = drawTag(ctx, date, WIDTH/2, y-20, adStyle('date-strip').size, brand.dateWeight, -.018, isNew ? brand.light : brand.yellow, brand.dark, 18473562)
     if (dw > WIDTH - 2*SAFE) errors.push('The cover date is too long.')
   }
-  return { background, headline: { x, y, width, height } }
+  // The room the box leaves around the lettering, for the note under Adjust tape background (18 Oct 2026): a box set by
+  // hand stays where it was put, so a headline that grows afterwards can end up tight against its edges, as a posted
+  // What's New cover did. The house box gives 82 at the sides, 59 above and 64 below.
+  const room = { left: Math.round(x + padX - background.x), right: Math.round(background.x + background.width - (x + padX + maxWidth)), top: Math.round(y + padTop - background.y), bottom: Math.round(background.y + background.height - (y + height - padBottom - subHeight)) }
+  return { background, headline: { x, y, width, height }, cover: { handSet: !!c.backgrounds[issue.series], room } }
 }
 
 export async function preparePhoto(file: File): Promise<string> {
