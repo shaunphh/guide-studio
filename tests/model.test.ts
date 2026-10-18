@@ -318,3 +318,42 @@ describe('the word count under a story', () => {
     expect(WORD_GOAL).toEqual({ low: 80, high: 90 })
   })
 })
+
+describe('the weekly doc’s extra fields (18 Oct 2026)', () => {
+  it('keeps alt text, credit, section and event ID on their fields, off the story, and skips the notes', () => {
+    const doc = `Key: ✅ done 🟠 waiting 🔴 not started
+
+✅ Light House Cinema plans major Smithfield expansion
+Written by: Jack
+Brief: planning application for two screens
+Source: Dublin Inquirer
+Link: https://example.com/story
+Section: News
+Event: AD-2026-0412
+Instagram: @lighthousecinema
+Photo: https://drive.google.com/x
+Alt text: The cinema’s red neon sign at dusk
+Photo credit: Light House Cinema
+Text:
+The Light House Cinema has applied for planning permission to add two new screens.
+
+The plans go to the council in November.
+Website text:
+A longer version for the site that must not reach the slide.
+Newsletter text:
+Short newsletter line.`
+    const { stories } = parseImport(doc, 'new')
+    expect(stories).toHaveLength(1)
+    const s = stories[0]
+    expect(s.title).toBe('Light House Cinema plans major Smithfield expansion')
+    expect(s.body).toBe('The Light House Cinema has applied for planning permission to add two new screens.\n\nThe plans go to the council in November.')
+    expect([s.handle, s.alt, s.credit, s.section, s.event]).toEqual(['@lighthousecinema', 'The cinema’s red neon sign at dusk', 'Light House Cinema', 'News', 'AD-2026-0412'])
+  })
+  it('skips the same notes in a plain Title: doc', () => {
+    const { stories } = parseImport('Title: Ruby Sessions\nInstagram: @therubysessions\nDate: 6 Oct\nTime: 8:30pm\nVenue: Doyle’s Bar\nPick note: the best Tuesday in town\nAlt: A singer under candlelight\nText:\nLive acoustic music every Tuesday.\nNote: check the start time\nWebsite text:\nLonger.\n')
+    expect(stories[0].body).toBe('Live acoustic music every Tuesday.')
+    expect(stories[0].alt).toBe('A singer under candlelight')
+    expect(stories[0].venue).toBe('Doyle’s Bar')
+    expect(stories[0].time).toBe('8:30pm')
+  })
+})
