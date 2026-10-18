@@ -345,6 +345,9 @@ Short newsletter line.`
     const { stories } = parseImport(doc, 'new')
     expect(stories).toHaveLength(1)
     const s = stories[0]
+    expect(s.website).toBe('A longer version for the site that must not reach the slide.')
+    expect(s.source).toBe('Dublin Inquirer')
+    expect(s.link).toBe('https://example.com/story')
     expect(s.title).toBe('Light House Cinema plans major Smithfield expansion')
     expect(s.body).toBe('The Light House Cinema has applied for planning permission to add two new screens.\n\nThe plans go to the council in November.')
     expect([s.handle, s.alt, s.credit, s.section, s.event]).toEqual(['@lighthousecinema', 'The cinema’s red neon sign at dusk', 'Light House Cinema', 'News', 'AD-2026-0412'])
@@ -353,7 +356,28 @@ Short newsletter line.`
     const { stories } = parseImport('Title: Ruby Sessions\nInstagram: @therubysessions\nDate: 6 Oct\nTime: 8:30pm\nVenue: Doyle’s Bar\nPick note: the best Tuesday in town\nAlt: A singer under candlelight\nText:\nLive acoustic music every Tuesday.\nNote: check the start time\nWebsite text:\nLonger.\n')
     expect(stories[0].body).toBe('Live acoustic music every Tuesday.')
     expect(stories[0].alt).toBe('A singer under candlelight')
+    expect(stories[0].website).toBe('Longer.')
+    expect(stories[0].pickNote).toBe('the best Tuesday in town')
     expect(stories[0].venue).toBe('Doyle’s Bar')
     expect(stories[0].time).toBe('8:30pm')
+  })
+})
+
+
+describe('website publishing round trip', () => {
+  it('retains CSV event IDs, website copy, reasons, sources and photo credits', () => {
+    const csv = 'DATE,NAME,LOCATION,START TIME,Approved,TOP PICKS,ID,Description,BLURB,Pick note,Alt text,Photo credit,Source,EVENT/TICKETS LINK\n2026-10-20,Ruby Sessions,Doyle’s Bar,20:30,TRUE,TRUE,AD-0412,Long website copy,Short slide copy,Our reason,Singer at a mic,Ruby Sessions,Organiser,https://example.com/ruby'
+    const { stories } = parseImport(csv, 'picks')
+    expect(stories[0]).toMatchObject({ event: 'AD-0412', website: 'Long website copy', body: 'Short slide copy', pickNote: 'Our reason', alt: 'Singer at a mic', credit: 'Ruby Sessions', source: 'Organiser', link: 'https://example.com/ruby' })
+    const guide = makeIssue('picks'); guide.stories = stories
+    guide.stories[0].photo = 'https://example.supabase.co/storage/v1/object/public/guides/g/s-hash.jpg'
+    const restored = sanitizeIssue(JSON.parse(JSON.stringify(guide)))
+    expect(restored.stories[0]).toEqual(guide.stories[0])
+  })
+  it('defaults old guides to empty website fields and rejects unsafe photos', () => {
+    const guide = makeIssue('new'); const story = guide.stories[0] as any
+    delete story.website; delete story.pickNote; delete story.source; delete story.link
+    story.photo = 'javascript:alert(1)'
+    expect(sanitizeIssue(guide).stories[0]).toMatchObject({ website: '', pickNote: '', source: '', link: '', photo: '' })
   })
 })

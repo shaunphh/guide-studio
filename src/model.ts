@@ -5,7 +5,7 @@ import { adNumber, adStyle, adValue } from './adTokens'
 
 export type Series = 'picks' | 'new'
 export type Crop = { x: number; y: number; zoom: number }
-export type Story = { id: string; title: string; body: string; handle: string; date: string; time: string; venue: string; photo: string; coverEligible: boolean; crop: Crop; imageHeight: number | null; alt: string; credit: string; section: string; event: string }
+export type Story = { id: string; title: string; body: string; handle: string; date: string; time: string; venue: string; photo: string; coverEligible: boolean; crop: Crop; imageHeight: number | null; alt: string; credit: string; section: string; event: string; website: string; pickNote: string; source: string; link: string }
 export type Cover = { title: string; subtitle: string; date: string; slots: string[]; photos: string[]; backgrounds: Record<Series,CoverBounds | null>; backgroundsRevision: typeof BACKGROUNDS_REVISION; crops: Crop[]; position: number; scrim: number; layout: 2 | 4; orientation: 'vertical' | 'horizontal'; logoPosition: 'left' | 'right' | 'off'; markColour: 'series' | 'yellow' | 'white' | 'dark'; divider: 'dark' | 'light' | 'yellow'; subtitlePosition: 'bottom' | 'tape' }
 /** Where a guide stands on the team library: the row's server time and who saved it, and this copy's `updated` when they last matched. */
 export type TeamLink = { updatedAt: string; by: string; synced: string }
@@ -33,7 +33,7 @@ export const crop = (): Crop => ({ x: 50, y: 50, zoom: 1 })
 export const WORD_GOAL = { low: 80, high: 90 }
 /** Words in a story: runs of characters with a letter or figure in them, so a lone dash isn't one. */
 export const wordCount = (text: string) => text.split(/\s+/).filter(word => /[\p{L}\p{N}]/u.test(word)).length
-export const blankStory = (): Story => ({ id: newId(), title: '', body: '', handle: '', date: '', time: '', venue: '', photo: '', coverEligible: true, crop: crop(), imageHeight: null, alt: '', credit: '', section: '', event: '' })
+export const blankStory = (): Story => ({ id: newId(), title: '', body: '', handle: '', date: '', time: '', venue: '', photo: '', coverEligible: true, crop: crop(), imageHeight: null, alt: '', credit: '', section: '', event: '', website: '', pickNote: '', source: '', link: '' })
 export const coverTitle = (s: Series) => s === 'picks' ? 'Event\nGuide\nPicks' : 'What’s\nNew in\nDublin'
 export const clone = <T>(value: T): T => structuredClone(value)
 export const designUnlocked = () => typeof location !== 'undefined' && new URLSearchParams(location.search).has('unlocked')
@@ -99,7 +99,8 @@ const string = (value: unknown, limit = 20000) => typeof value === 'string' ? va
 const bounded = (n: unknown, low: number, high: number, fallback: number) => typeof n === 'number' && Number.isFinite(n) ? Math.min(high, Math.max(low, n)) : fallback
 const record = (o: unknown): Record<string, any> => o && typeof o === 'object' && !Array.isArray(o) ? o as Record<string, any> : {}
 const safeCrop = (c: unknown): Crop => { const o = record(c); return { x: bounded(o.x, 0, 100, 50), y: bounded(o.y, 0, 100, 50), zoom: bounded(o.zoom, 1, 3, 1) } }
-const safePhoto = (p: unknown) => typeof p === 'string' && (/^data:image\/(jpeg|png|webp);base64,[a-zA-Z0-9+/=]+$/.test(p) || /^\/photos\/(pub|art|cinema|music)\.jpg$/.test(p)) ? p : ''
+const isTeamPhoto = (p: string) => { try { const u = new URL(p); return u.protocol === 'https:' && u.hostname.endsWith('.supabase.co') && u.pathname.startsWith('/storage/v1/object/public/guides/') } catch { return false } }
+const safePhoto = (p: unknown) => typeof p === 'string' && (isTeamPhoto(p) || /^data:image\/(jpeg|png|webp);base64,[a-zA-Z0-9+/=]+$/.test(p) || /^\/photos\/(pub|art|cinema|music)\.jpg$/.test(p)) ? p : ''
 export function sanitizeBrand(value: unknown): Brand {
   const b = record(value)
   // Adopt the approved typography once for the first prototype's saved drafts.
@@ -114,7 +115,7 @@ export function sanitizeBrand(value: unknown): Brand {
 }
 // Earlier backups embedded the demo poster. Recognise its exact bytes, without excluding replacement photography.
 const isSamplePoster = (photo: string) => photo === '/photos/art.jpg' || (photo.length === 299695 && crc32(new TextEncoder().encode(photo)) === 2975244171)
-const sanitizeStory = (s: Record<string, any>, id: string): Story => ({ id, title: string(s.title, 500), body: string(s.body), handle: string(s.handle, 200), date: string(s.date, 100), time: string(s.time, 100), venue: string(s.venue, 200), photo: safePhoto(s.photo), coverEligible: s.coverEligible !== false && !isSamplePoster(safePhoto(s.photo)), crop: safeCrop(s.crop), imageHeight: s.imageHeight == null ? null : bounded(s.imageHeight, 280, 620, 530), alt: string(s.alt, 500), credit: string(s.credit, 200), section: string(s.section, 50), event: string(s.event, 100) })
+const sanitizeStory = (s: Record<string, any>, id: string): Story => ({ id, title: string(s.title, 500), body: string(s.body), handle: string(s.handle, 200), date: string(s.date, 100), time: string(s.time, 100), venue: string(s.venue, 200), photo: safePhoto(s.photo), coverEligible: s.coverEligible !== false && !isSamplePoster(safePhoto(s.photo)), crop: safeCrop(s.crop), imageHeight: s.imageHeight == null ? null : bounded(s.imageHeight, 280, 620, 530), alt: string(s.alt, 500), credit: string(s.credit, 200), section: string(s.section, 50), event: string(s.event, 100), website: string(s.website), pickNote: string(s.pickNote, 1000), source: string(s.source, 300), link: string(s.link, 2000) })
 /** A team link survives a save only whole; anything else means the guide is this browser's alone. */
 function teamLink(value: unknown): TeamLink | undefined {
   const t = record(value), updatedAt = string(t.updatedAt, 100), by = string(t.by, 200), synced = string(t.synced, 100)
@@ -163,6 +164,14 @@ const ticked = (value: unknown) => /^(true|yes|y|1|x|✓|✔)$/i.test(String(val
 /** A Sheet or CSV: its first row the column names. `typed` names columns Google holds as dates or times (see sheet.ts). */
 type Table = { headers: string[]; rows: string[][]; typed?: string[] }
 const columnKey = (header: string) => header.toLowerCase().replace(/[^a-z]/g, '')
+
+/** The website's fields, kept apart from the 80–90-word slide copy, from a Sheet or CSV row (19 Oct 2026): website text, pick note, source, link, with the event id, alt text, credit and section. */
+function websiteFields(table: Table, row: string[]) {
+  const keys = table.headers.map(columnKey)
+  const read = (...names: string[]) => { for (const name of names) { const i = keys.indexOf(name); if (i >= 0) return string(row[i]).trim() } return '' }
+  return { event: read('eventid', 'event', 'id'), alt: read('alttext', 'alt'), credit: read('photocredit', 'credit'), section: read('section'), website: read('websitetext', 'websitecopy', 'description'), pickNote: read('picknote'), source: read('source'), link: read('link', 'sourcelink', 'eventticketslink', 'eventlink', 'url') }
+}
+
 /**
  * The events Sheet, the event guide's, read the way the event guide reads it (weekday rows, approval,
  * dates). A Picks guide takes the approved rows with TOP PICKS ticked: title, handle, date, time and venue
@@ -179,7 +188,7 @@ function eventSheetStories(table: Table, series: Series) {
   const keys = table.headers.map(columnKey)
   // BLURB is the Instagram text; the Sheet's DESCRIPTION is the website's one or two sentences, so it is only a start.
   const blurb = ['blurb', 'text', 'body', 'copy', 'story', 'description'].map(name => keys.indexOf(name)).find(index => index >= 0) ?? -1
-  const stories: Story[] = picked.map((event: { title: string; instagram: string; date: Date; time: string; venue: string; sourceRow: number }) => ({ ...blankStory(), title: event.title, body: blurb >= 0 ? string(table.rows[event.sourceRow - 2]?.[blurb]).trim() : '', handle: event.instagram, date: `${event.date.getDate()} ${MONTH_NAMES[event.date.getMonth()]}`, time: footerTime(event.time), venue: event.venue }))
+  const stories: Story[] = picked.map((event: { title: string; instagram: string; date: Date; time: string; venue: string; sourceRow: number }) => ({ ...blankStory(), ...websiteFields(table, table.rows[event.sourceRow - 2] ?? []), title: event.title, body: blurb >= 0 ? string(table.rows[event.sourceRow - 2]?.[blurb]).trim() : '', handle: event.instagram, date: `${event.date.getDate()} ${MONTH_NAMES[event.date.getMonth()]}`, time: footerTime(event.time), venue: event.venue }))
   const warnings = [`${picked.length} of the Sheet’s ${events.length} approved events ${picked.length === 1 ? 'is' : 'are'} ticked ${series === 'picks' ? 'TOP PICKS' : 'What’s New'}.`]
   if (blurb < 0) warnings.push('The Sheet has no Blurb column, so each story’s text is written here.')
   return { stories, warnings, textless: blurb < 0 }
@@ -198,7 +207,7 @@ function tableStories(table: Table, series: Series) {
   if (title < 0) throw new Error('No Title column. The first row names the columns: Title, Text, Instagram, Date, Time, Venue.')
   const cell = (row: string[], index: number) => index < 0 ? '' : string(row[index]).trim()
   const rows = table.rows.filter(row => row.some(value => String(value ?? '').trim()))
-  const stories: Story[] = rows.map(row => ({ ...blankStory(), title: cell(row, title), body: cell(row, body), handle: cell(row, handle), date: footerDate(cell(row, date)), time: footerTime(cell(row, time)), venue: cell(row, venue) }))
+  const stories: Story[] = rows.map(row => ({ ...blankStory(), ...websiteFields(table, row), title: cell(row, title), body: cell(row, body), handle: cell(row, handle), date: footerDate(cell(row, date)), time: footerTime(cell(row, time)), venue: cell(row, venue) }))
   // Google drops a cell typed as text (22–26 Oct) from a column it holds as dates or times.
   const dropped = [[date, 'Date'], [time, 'Time']].filter(([index]) => typeof index === 'number' && index >= 0 && table.typed?.includes(table.headers[index as number]) && rows.some(row => !cell(row, index as number)))
   const warnings = dropped.map(([, name]) => `Some stories have no ${name}. If the Sheet shows one, set its ${name} column to Plain text (Format → Number → Plain text) and load it again.`)
@@ -213,7 +222,7 @@ function tableStories(table: Table, series: Series) {
 const STATUS_LINE = /^([✅🟢☑✔🟠🟡🔴❌])️?\s*(.*)$/u
 const DONE = new Set(['✅', '🟢', '☑', '✔'])
 /** Notes for the team, not the slide: these lines and the ones under them stay out of the story. */
-const NOTE_LABEL = /^(?:newsletter(?: text)?|written by|brief|link|source|photo(?: link)?|website text|pick note|caption|notes?)\s*:/i
+const NOTE_LABEL = /^(?:newsletter(?: text)?|written by|brief|photo(?: link)?|caption|notes?)\s*:/i  // Website text, Pick note, Source and Link are the story's own since 19 Oct 2026
 const statusDoc = (text: string) => text.split('\n').some(line => STATUS_LINE.test(line.trim())) && /^\s*(?:written by|brief|newsletter(?: text)?)\s*:/im.test(text)
 
 /**
@@ -247,27 +256,29 @@ export function parseImport(input: string | Table, series: Series = 'picks'): { 
     const statuses = statusDoc(text)
     const read = docSections(text, statuses).map(section => {
       const s = blankStory()
-      const body: string[] = []
-      let readingBody = false, inNote = false, labelled = false, status = ''
+      const body: string[] = [], website: string[] = []
+      let readingBody = false, readingWebsite = false, inNote = false, labelled = false, status = ''
       for (const raw of section.trim().split('\n')) {
         const line = raw.trim()
-        const field = /^(title|headline|name|body|text|description|handle|instagram|date|time|venue|location|alt text|alt|photo credit|credit|section|event id|event|id)\s*:\s*(.*)$/i.exec(line)
+        const field = /^(title|headline|name|body|text|description|handle|instagram|date|time|venue|location|alt text|alt|photo credit|credit|section|event id|event|id|website text|pick note|source|link)\s*:\s*(.*)$/i.exec(line)
         if (field) {
-          const key = ({ headline:'title', name:'title', text:'body', description:'body', instagram:'handle', location:'venue', 'alt text':'alt', 'photo credit':'credit', 'event id':'event', id:'event' } as Record<string,string>)[field[1].toLowerCase()] ?? field[1].toLowerCase()
-          readingBody = key === 'body'; inNote = false; labelled = true
-          if (key === 'body') body.push(field[2]); else (s as any)[key] = field[2]
-        } else if (NOTE_LABEL.test(line)) { readingBody = false; inNote = labelled = true }  // notes for the team, in either kind of doc (18 Oct 2026)
+          const key = ({ headline:'title', name:'title', text:'body', description:'body', instagram:'handle', location:'venue', 'alt text':'alt', 'photo credit':'credit', 'event id':'event', id:'event', 'website text':'website', 'pick note':'pickNote' } as Record<string,string>)[field[1].toLowerCase()] ?? field[1].toLowerCase()
+          readingBody = key === 'body'; readingWebsite = key === 'website'; inNote = false; labelled = true
+          if (key === 'body') body.push(field[2]); else if (key === 'website') website.push(field[2]); else (s as any)[key] = field[2]
+        } else if (NOTE_LABEL.test(line)) { readingBody = readingWebsite = false; inNote = labelled = true }  // notes for the team, in either kind of doc (18 Oct 2026)
         else if (!s.title && line) {
           const marked = statuses ? STATUS_LINE.exec(line) : null
           if (marked) status = marked[1]
           s.title = marked ? marked[2] : line.replace(/^#{1,3}\s+/, ''); readingBody = true
         }
         else if (inNote) continue
+        else if (readingWebsite) website.push(raw)
         else if (/^@[\w.]+$/.test(line) && !s.handle) { s.handle = line; readingBody = false }
         // Once the text has started, an empty line between paragraphs stays a paragraph break.
         else if (readingBody || line) { body.push(raw); if (line) readingBody = true }
       }
       s.body = body.join('\n').trim()
+      s.website = website.join('\n').trim()
       return { s, status, labelled }
     })
     // In the What's New doc the key and the notes above the first story carry no labels, and a story
