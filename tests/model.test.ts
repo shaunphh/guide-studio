@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { BASE_BRAND, blankStory, coverLook, coverPhoto, footerDate, footerTime, handlesOf, makeIssue, parseImport, pictureHeight, sanitizeBrand, sanitizeIssue, switchSeries } from '../src/model'
+import { BASE_BRAND, WORD_GOAL, blankStory, wordCount, coverLook, coverPhoto, footerDate, footerTime, handlesOf, makeIssue, parseImport, pictureHeight, sanitizeBrand, sanitizeIssue, switchSeries } from '../src/model'
 import { gvizTable, parseSheetLink } from '../src/sheet'
 import { clampBounds, dragBounds } from '../src/cover-bounds'
 import { coverFrames } from '../src/render'
@@ -305,5 +305,16 @@ describe('carousel ZIP export', () => {
     expect(view.getUint16(end+10,true)).toBe(2)
     expect(view.getUint32(offset,true)).toBe(0x02014b50)
     expect(view.getUint32(offset+42,true)).toBe(0)
+  })
+})
+
+describe('the word count under a story', () => {
+  it('counts runs with a letter or figure in them, not lone dashes or blank lines', () => {
+    expect(wordCount('Doors open at 7:30pm – the show starts at 8pm.\n\nGrab your friends!')).toBe(12)
+    expect(wordCount('')).toBe(0)
+    expect(wordCount('  \n ')).toBe(0)
+  })
+  it('keeps the goal the doc guide gives', () => {
+    expect(WORD_GOAL).toEqual({ low: 80, high: 90 })
   })
 })

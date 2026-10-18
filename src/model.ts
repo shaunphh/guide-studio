@@ -25,6 +25,12 @@ export const BACKGROUNDS_REVISION = 2
 export const seriesName = (s: Series) => s === 'picks' ? 'Event Guide Picks' : 'What’s New in Dublin'
 export const newId = () => crypto.randomUUID()
 export const crop = (): Crop => ({ x: 50, y: 50, zoom: 1 })
+
+/** The story length a page holds (measured 8 Oct 2026): 80 to 90 words under a one- or two-line headline, about 80 under
+ *  three lines. The goal for the doc the team writes in; the page itself says exactly, once a story is in. */
+export const WORD_GOAL = { low: 80, high: 90 }
+/** Words in a story: runs of characters with a letter or figure in them, so a lone dash isn't one. */
+export const wordCount = (text: string) => text.split(/\s+/).filter(word => /[\p{L}\p{N}]/u.test(word)).length
 export const blankStory = (): Story => ({ id: newId(), title: '', body: '', handle: '', date: '', time: '', venue: '', photo: '', coverEligible: true, crop: crop(), imageHeight: null })
 export const coverTitle = (s: Series) => s === 'picks' ? 'Event\nGuide\nPicks' : 'What’s\nNew in\nDublin'
 export const clone = <T>(value: T): T => structuredClone(value)

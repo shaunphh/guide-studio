@@ -1,5 +1,5 @@
 import './styles.css'
-import { BASE_BRAND, blankStory, clone, coverLook, coverPhoto, designUnlocked, crop, makeIssue, newId, parseImport, pictureHeight, readLibrary, sanitizeBrand, sanitizeIssue, saveLibrary, seriesName, switchSeries, type Brand, type Issue, type Library, type Series } from './model'
+import { BASE_BRAND, blankStory, clone, coverLook, coverPhoto, designUnlocked, crop, makeIssue, newId, parseImport, pictureHeight, readLibrary, sanitizeBrand, sanitizeIssue, saveLibrary, seriesName, switchSeries, type Brand, type Issue, type Library, type Series, wordCount, WORD_GOAL } from './model'
 import { HEIGHT, WIDTH, asset, coverFrames, fillPreviewText, loadFonts, loadedImage, preparePhoto, renderPage } from './render'
 import { zipFiles } from './zip'
 import { loadSheet, parseSheetLink, saveSheetLink, savedSheetLink } from './sheet'
@@ -151,7 +151,7 @@ function coverPanel() {
   ${choices('Photo count','layout',look.count,[[2,'2 photos'],[4,'4 photos',!open]])}
   ${choices('Photo layout','orientation',c.orientation,[['vertical','Side by side',look.count===4],['horizontal','Top & bottom',look.count===4]])}
   <div class="collage-picker ${look.count===2&&c.orientation==='horizontal'?'stacked':''}" role="group" aria-label="Collage position">${c.slots.slice(0,look.count).map((id,i)=>{const photo=coverPhoto(issue(),i);return `<button data-slot="${i}" class="${coverSlot===i?'active':''}" aria-label="Collage position ${i+1}">${photo?`<img src="${escape(photo)}" alt="">`:icon('image')}<span>${i+1}</span></button>`}).join('')}</div>
-  <button id="upload-cover-photo" class="secondary cover-upload">${icon('upload')} ${c.photos[coverSlot]?'Replace uploaded photo':'Upload photo'} ${coverSlot+1}</button><label class="field"><span>Photo ${coverSlot+1} · or use a story’s image</span><select id="collage-source">${c.photos[coverSlot]?'<option value="uploaded" selected>Uploaded cover photo</option>':''}${issue().stories.map((s,i)=>({s,i})).filter(({s})=>s.coverEligible).map(({s,i})=>`<option value="${escape(s.id)}" ${!c.photos[coverSlot]&&s.id===c.slots[coverSlot]?'selected':''}>${String(i+1).padStart(2,'0')} · ${escape(s.title||'Untitled story')}</option>`).join('')}</select></label>
+  <button id="upload-cover-photo" class="secondary cover-upload">${icon('upload')} ${c.photos[coverSlot]?'Replace uploaded photo':'Upload photo'} ${coverSlot+1}</button><p class="field-note">Or drop an image on the page, or paste one (⌘ or Ctrl + V) copied from a website: it goes to photo ${coverSlot+1}.</p><label class="field"><span>Photo ${coverSlot+1} · or use a story’s image</span><select id="collage-source">${c.photos[coverSlot]?'<option value="uploaded" selected>Uploaded cover photo</option>':''}${issue().stories.map((s,i)=>({s,i})).filter(({s})=>s.coverEligible).map(({s,i})=>`<option value="${escape(s.id)}" ${!c.photos[coverSlot]&&s.id===c.slots[coverSlot]?'selected':''}>${String(i+1).padStart(2,'0')} · ${escape(s.title||'Untitled story')}</option>`).join('')}</select></label>
   <p class="field-note">${c.photos[coverSlot]?'This upload is saved with the cover; inside pages keep their own photos.':s?.photo?'Each cover crop is independent of its story.':'Upload a cover photo or add one on a story page.'} Choose photographs without poster text or graphic overlays.</p>
   ${cropControls('cover',c.crops[coverSlot])}
   <div class="rule"></div>${range('Photo scrim','cover.scrim',c.scrim,0,80,1,'%')}
@@ -236,7 +236,7 @@ function bindBounds() {
 function cropControls(prefix: string, view: {x:number;y:number;zoom:number}) { return `${range('Zoom',`${prefix}.zoom`,view.zoom,1,3,.01,'×')}${range('Left / right',`${prefix}.x`,view.x,0,100,1,'%')}${range('Up / down',`${prefix}.y`,view.y,0,100,1,'%')}<button id="reset-crop" class="text-button">Reset photo crop</button>` }
 function storyPanel() {
   const s=story()!
-  return `${field('Headline','story.title',s.title,{rows:2,placeholder:'A good story starts here'})}<div class="body-heading"><span>Story</span><div><button class="format-button" data-format="**" title="Bold selected text" aria-label="Bold selected text"><b>B</b></button><button class="format-button" data-format="_" title="Italic selected text" aria-label="Italic selected text"><i>I</i></button></div></div><textarea class="story-body" data-field="story.body" rows="8" aria-label="Story body" placeholder="Tell the story…">${escape(s.body)}</textarea><p class="field-note">Select words to add emphasis. Blank lines start a new paragraph.</p>${field('Instagram handle','story.handle',s.handle,{placeholder:'@thevenue',hint:'Two handles? Put a space between them and they stack in the footer.'})}${issue().series==='picks'?`<div class="field-pair">${field('Date','story.date',s.date,{placeholder:'6 Oct'})}${field('Time','story.time',s.time,{placeholder:'8:30pm'})}</div>${field('Venue','story.venue',s.venue,{placeholder:'Doyle’s Bar'})}`:'<p class="field-note">What’s New uses the handle-only footer. Event details stay saved if you switch series.</p>'}<div class="rule"></div>${heading('Photo',s.photo?'Drag it on the page to reframe':'A picture tells the story')}<button id="choose-photo" class="photo-upload">${s.photo?`<img src="${escape(s.photo)}" alt="Current story photo"><span>${icon('image')} Replace photo</span>`:`${icon('upload')} Choose a photo`}</button><label class="cover-eligibility"><input type="checkbox" data-field="story.coverEligible" ${s.coverEligible?'checked':''}> Offer this photo for the cover</label><p class="field-note">Turn off for posters and images with large text or graphics.</p>${cropControls('story',s.crop)}${designUnlocked()?`${range('Picture height','story.imageHeight',pictureHeight(s,library.brand),280,620,10,'px')}<p class="field-note">Or drag the picture’s bottom edge on the page.</p><button id="reset-layout" class="text-button">Use house picture height</button>`:`${range('Picture height','story.imageHeight',library.brand.imageHeight,280,620,10,'px',1,true)}<p class="field-note">Every page’s picture is the same height, so the story keeps to the room under it.</p>`}<div class="rule"></div><div class="page-actions"><button id="move-up" class="quiet" ${pageIndex()===1?'disabled':''}>${icon('up')} Up</button><button id="move-down" class="quiet" ${pageIndex()===issue().stories.length?'disabled':''}>${icon('down')} Down</button><button id="duplicate" class="quiet" title="Duplicate story" aria-label="Duplicate story">${icon('copy')}</button><button id="delete" class="quiet danger" title="Remove story" aria-label="Remove story" ${issue().stories.length===1?'disabled':''}>${icon('trash')}</button></div>`
+  return `${field('Headline','story.title',s.title,{rows:2,placeholder:'A good story starts here'})}<div class="body-heading"><span>Story</span><div><button class="format-button" data-format="**" title="Bold selected text" aria-label="Bold selected text"><b>B</b></button><button class="format-button" data-format="_" title="Italic selected text" aria-label="Italic selected text"><i>I</i></button></div></div><textarea class="story-body" data-field="story.body" rows="8" aria-label="Story body" placeholder="Tell the story…">${escape(s.body)}</textarea><p class="field-note"><span id="word-count" class="word-count" title="A page holds 80 to 90 words under a one- or two-line headline, about 80 under three. The count follows the page as it is drawn.">${wordCount(s.body)} words</span> · Select words to add emphasis. Blank lines start a new paragraph.</p>${field('Instagram handle','story.handle',s.handle,{placeholder:'@thevenue',hint:'Two handles? Put a space between them and they stack in the footer.'})}${issue().series==='picks'?`<div class="field-pair">${field('Date','story.date',s.date,{placeholder:'6 Oct'})}${field('Time','story.time',s.time,{placeholder:'8:30pm'})}</div>${field('Venue','story.venue',s.venue,{placeholder:'Doyle’s Bar'})}`:'<p class="field-note">What’s New uses the handle-only footer. Event details stay saved if you switch series.</p>'}<div class="rule"></div>${heading('Photo',s.photo?'Drag it on the page to reframe':'A picture tells the story')}<button id="choose-photo" class="photo-upload">${s.photo?`<img src="${escape(s.photo)}" alt="Current story photo"><span>${icon('image')} Replace photo</span>`:`${icon('upload')} Choose a photo`}</button><p class="field-note">Or drop an image on this button, on the page or on the story’s card in the list, or paste one (⌘ or Ctrl + V) copied from a website.</p><label class="cover-eligibility"><input type="checkbox" data-field="story.coverEligible" ${s.coverEligible?'checked':''}> Offer this photo for the cover</label><p class="field-note">Turn off for posters and images with large text or graphics.</p>${cropControls('story',s.crop)}${designUnlocked()?`${range('Picture height','story.imageHeight',pictureHeight(s,library.brand),280,620,10,'px')}<p class="field-note">Or drag the picture’s bottom edge on the page.</p><button id="reset-layout" class="text-button">Use house picture height</button>`:`${range('Picture height','story.imageHeight',library.brand.imageHeight,280,620,10,'px',1,true)}<p class="field-note">Every page’s picture is the same height, so the story keeps to the room under it.</p>`}<div class="rule"></div><div class="page-actions"><button id="move-up" class="quiet" ${pageIndex()===1?'disabled':''}>${icon('up')} Up</button><button id="move-down" class="quiet" ${pageIndex()===issue().stories.length?'disabled':''}>${icon('down')} Down</button><button id="duplicate" class="quiet" title="Duplicate story" aria-label="Duplicate story">${icon('copy')}</button><button id="delete" class="quiet danger" title="Remove story" aria-label="Remove story" ${issue().stories.length===1?'disabled':''}>${icon('trash')}</button></div>`
 }
 function stylePanel() {
   const b=library.brand
@@ -292,16 +292,7 @@ function bindShell() {
   get('reset-layout')?.addEventListener('click',()=>change('reset-layout',()=>{story()!.imageHeight=null},true))
   get('reset-brand')?.addEventListener('click',()=>change('reset-brand',()=>{library.brand=clone(BASE_BRAND)},true))
   get('upload-cover-photo')?.addEventListener('click',()=>get<HTMLInputElement>('cover-photo-file').click())
-  get<HTMLInputElement>('cover-photo-file').onchange=async e=>{
-    const file=(e.target as HTMLInputElement).files?.[0];if(!file)return
-    const targetIssue=issue().id,slot=coverSlot
-    try{
-      const photo=await preparePhoto(file)
-      if(issue().id!==targetIssue)return toast('Guide changed. Choose the photo again.',true)
-      change('cover-upload',()=>{issue().cover.photos[slot]=photo;issue().cover.crops[slot]=crop()},true)
-      toast(`Cover photo ${slot+1} saved.`)
-    }catch(error){toast((error as Error).message,true)}
-  }
+  get<HTMLInputElement>('cover-photo-file').onchange=e=>{const input=e.target as HTMLInputElement,file=input.files?.[0];input.value='';if(file)void takePhoto(file,{kind:'cover',slot:coverSlot})}
   get('full-copy-preview')?.addEventListener('click',async()=>{
     await flushSave()
     const preview=clone(issue());preview.id=newId();preview.name='Type & spacing · full pages';preview.sample=true;preview.updated=new Date().toISOString()
@@ -310,11 +301,7 @@ function bindShell() {
     toast('Every page is filled to its last line. Your original guide is in My guides.')
   })
   get('choose-photo')?.addEventListener('click',()=>get<HTMLInputElement>('photo-file').click())
-  get<HTMLInputElement>('photo-file').onchange=async e=>{
-    const f=(e.target as HTMLInputElement).files?.[0];if(!f)return
-    const targetId=selected,targetIssue=issue().id
-    try { const data=await preparePhoto(f); if(issue().id!==targetIssue)return toast('Guide changed. Choose the photo again.',true); change('photo',()=>{const s=issue().stories.find(s=>s.id===targetId);if(s){s.photo=data;s.crop=crop();s.coverEligible=true}},true);toast('Photo saved with this guide.') } catch(err){toast((err as Error).message,true)}
-  }
+  get<HTMLInputElement>('photo-file').onchange=e=>{const input=e.target as HTMLInputElement,file=input.files?.[0];input.value='';if(file)void takePhoto(file,{kind:'story',id:selected})}
   get<HTMLInputElement>('restore-file').onchange=async e=>{
     const f=(e.target as HTMLInputElement).files?.[0];if(!f)return
     try {
@@ -381,7 +368,7 @@ async function drawAll(){
       const canvas=get<HTMLCanvasElement>('artboard'),stage=document.createElement('canvas')
       const result=await renderPage(stage,snapshot,index,brand,previewScale())
       if(token!==renderToken||!canvas.isConnected)return
-      canvas.width=stage.width;canvas.height=stage.height;canvas.getContext('2d')!.drawImage(stage,0,0);currentErrors=result.errors;setFit(result.errors)
+      canvas.width=stage.width;canvas.height=stage.height;canvas.getContext('2d')!.drawImage(stage,0,0);currentErrors=result.errors;setFit(result.errors);setWords(result.fit)
       shownPage=`${snapshot.id}:${index===0?'cover':snapshot.stories[index-1].id}`
       if(index===0){lastCoverBounds=result.background;lastHeadline=result.headline;lastBoundsKey=`${snapshot.id}:${snapshot.series}`;syncBounds()}
     }
@@ -400,6 +387,12 @@ async function drawThumbs(){
     if(token!==thumbToken)return
     c.dataset.painted=revision
   }
+}
+/** Under the story field: the words, and the room the page has left for more, or how far over it runs. */
+function setWords(fit?: { words: number; room: number }) {
+  const el = document.getElementById('word-count'); if (!el || !fit) return
+  el.textContent = `${fit.words} words · ${fit.room > 0 ? `room for about ${fit.room} more` : fit.room < 0 ? `about ${-fit.room} over` : 'full to the last line'}`
+  el.classList.toggle('over', fit.room < 0)
 }
 function setFit(errors:string[]){const el=get('fit-status');if(!el)return;el.className=errors.length?'needs-attention':'fits';el.innerHTML=`${icon(errors.length?'image':'check')}<span>${escape(errors[0]||'Everything fits. Ready when you are.')}</span>`;el.title=errors.join('\n')}
 
@@ -508,7 +501,7 @@ Doors open at 7:30pm and the show starts at 8pm. Grab your friends and see what 
 Title: The next story’s title
 Instagram: @theirhandle
 Text:
-The story goes here, about 500 characters. Leave an empty line between paragraphs.`
+The story goes here, 80 to 90 words (about 500 characters). Leave an empty line between paragraphs.`
 const IMPORT_EXAMPLE=DOC_TEMPLATE
 /** How to lay out a guide doc so it comes in cleanly, in Import copy. */
 const DOC_GUIDE=`<details class="sheet-guide"><summary>How to set up the doc</summary><ol>
@@ -526,13 +519,13 @@ const SHEET_GUIDE=`<details class="sheet-guide"><summary>How to set up the Sheet
 <li><b>Row 1 names the columns,</b> then one story to a row. Nothing above row 1, and no merged cells.</li>
 <li><b>The columns,</b> in any order:<ul>
 <li><b>Title</b>: the page title, as it should read.</li>
-<li><b>Text</b> (or Blurb): the story, about 500 characters. A line break in the cell (⌘ or Ctrl + Enter) starts a new paragraph; <code>**bold**</code> and <code>_italic_</code> work.</li>
+<li><b>Text</b> (or Blurb): the story, 80 to 90 words (about 500 characters). A line break in the cell (⌘ or Ctrl + Enter) starts a new paragraph; <code>**bold**</code> and <code>_italic_</code> work.</li>
 <li><b>Instagram</b>: the handle, or a link to the profile. For two, put a space between them.</li>
 <li><b>Date</b> and <b>Time</b>, as they should read: 9 Oct or 22–26 Oct, 8pm or 7:30pm. Set both columns to Plain text first (Format → Number → Plain text), so the Sheet keeps them as typed.</li>
 <li><b>Venue</b>.</li></ul>Leave a cell empty when a story doesn’t need it: What’s New stories often have no date.</li>
 <li><b>A tab a week:</b> duplicate last week’s tab, clear its rows, and paste the new tab’s link here. Each tab has its own link: open the tab and copy the address.</li>
 <li><b>Photos</b> go in here, after loading.</li></ol>
-<p><b>Picks from the events Sheet:</b> in a Picks guide, the events Sheet’s link brings in the rows with Approved and TOP PICKS ticked, with their names, dates, times, venues and handles. Add a BLURB column at the end of its tab for each pick’s text, about 500 characters; without one, the website’s short DESCRIPTION comes in as a start.</p></details>`
+<p><b>Picks from the events Sheet:</b> in a Picks guide, the events Sheet’s link brings in the rows with Approved and TOP PICKS ticked, with their names, dates, times, venues and handles. Add a BLURB column at the end of its tab for each pick’s text, 80 to 90 words; without one, the website’s short DESCRIPTION comes in as a start.</p></details>`
 function openImport(){
   importResult=null
   const series=issue().series
@@ -571,7 +564,7 @@ function openImport(){
 /** What an import found, from a Sheet or from pasted copy, before anything is added. */
 function showImportReview(){
   if(!importResult)return
-  get('import-review').innerHTML=`<div class="review-box"><b>${importResult.stories.length} stories found</b><ol>${importResult.stories.map(s=>`<li>${escape(s.title||'Missing title')}<small>${s.body.length} characters</small></li>`).join('')}</ol>${importResult.warnings.map(w=>`<p>${escape(w)}</p>`).join('')}</div>`
+  get('import-review').innerHTML=`<div class="review-box"><b>${importResult.stories.length} stories found</b><ol>${importResult.stories.map(s=>`<li>${escape(s.title||'Missing title')}<small class="${wordCount(s.body)>WORD_GOAL.high?'over':''}">${wordCount(s.body)} words${wordCount(s.body)>WORD_GOAL.high?` · about ${wordCount(s.body)-WORD_GOAL.high} over the ${WORD_GOAL.low} to ${WORD_GOAL.high} a page holds`:''}</small></li>`).join('')}</ol>${importResult.stories.some(s=>wordCount(s.body)>WORD_GOAL.high)?`<p>A story over about ${WORD_GOAL.high} words runs into the footer. Its page says how far once it’s in; shorten it there or in the doc.</p>`:''}${importResult.warnings.map(w=>`<p>${escape(w)}</p>`).join('')}</div>`
   get<HTMLButtonElement>('apply-import').hidden=false;get<HTMLButtonElement>('apply-import').textContent=`Add ${importResult.stories.length} stories`;get<HTMLButtonElement>('review-import').hidden=true
   get('import-review').scrollIntoView({block:'nearest'})
 }
@@ -621,6 +614,75 @@ document.addEventListener('keydown',e=>{
 })
 window.addEventListener('beforeunload',e=>{if(saving||saveFailed){e.preventDefault();e.returnValue=''}})
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&saving)flushSave()})
+// Photos by drop or paste (18 Oct 2026): a file or an image from a website, dropped on the page, on a photo
+// button, or on a card in the list (that page's photo); a paste (⌘V) goes to the page on show. An image
+// dragged from a website is fetched; when its site won't allow that, the toast says to copy and paste it.
+type PhotoTarget = { kind: 'cover'; slot: number } | { kind: 'story'; id: string }
+const shownTarget = (): PhotoTarget => selected === 'cover' ? { kind: 'cover', slot: coverSlot } : { kind: 'story', id: selected }
+const DROP_ZONES = '[data-page], #choose-photo, #upload-cover-photo, .artboard-wrap'
+function dropTarget(node: EventTarget | null): { zone: HTMLElement; target: PhotoTarget } | null {
+  const zone = (node instanceof Element ? node.closest(DROP_ZONES) : null) as HTMLElement | null
+  if (!zone) return null
+  const page = zone.dataset.page
+  return { zone, target: page ? page === 'cover' ? { kind: 'cover', slot: coverSlot } : { kind: 'story', id: page } : shownTarget() }
+}
+const transferHasImage = (transfer: DataTransfer | null) => !!transfer && Array.from(transfer.types).some(type => type === 'Files' || type === 'text/uri-list')
+async function fileFromTransfer(transfer: DataTransfer): Promise<File | null> {
+  const file = Array.from(transfer.files).find(f => f.type.startsWith('image/'))
+  if (file) return file
+  const url = transfer.getData('text/uri-list').split('\n').map(l => l.trim()).find(l => l && !l.startsWith('#')) || /src="([^"]+)"/.exec(transfer.getData('text/html'))?.[1]
+  if (!url) return null
+  try {
+    const response = await fetch(url), blob = await response.blob()
+    if (!response.ok || !blob.type.startsWith('image/')) throw new Error()
+    return new File([blob], 'dropped', { type: blob.type })
+  } catch { throw new Error('That image can’t be read from its site. Copy the image (right-click → Copy image) and paste it here instead.') }
+}
+/** A photo for a page, from the file chooser, a drop or a paste. */
+async function takePhoto(file: File, target: PhotoTarget) {
+  const targetIssue = issue().id
+  try {
+    const photo = await preparePhoto(file)
+    if (issue().id !== targetIssue) return toast('Guide changed. Choose the photo again.', true)
+    if (target.kind === 'cover') {
+      const slot = target.slot
+      change('cover-upload', () => { issue().cover.photos[slot] = photo; issue().cover.crops[slot] = crop() }, true)
+      toast(`Cover photo ${slot + 1} saved.`)
+    } else {
+      const s = issue().stories.find(story => story.id === target.id)
+      if (!s) return toast('That story is gone.', true)
+      change('photo', () => { s.photo = photo; s.crop = crop(); s.coverEligible = true }, true)
+      toast(`Photo saved to story ${String(issue().stories.indexOf(s) + 1).padStart(2, '0')}.`)
+    }
+  } catch (error) { toast((error as Error).message, true) }
+}
+const clearDropMarks = (keep?: HTMLElement) => document.querySelectorAll('.drop-here').forEach(el => { if (el !== keep) el.classList.remove('drop-here') })
+document.addEventListener('dragover', e => {
+  if (!transferHasImage(e.dataTransfer)) return
+  e.preventDefault()  // or the browser opens the file in place of the app
+  const hit = get<HTMLDialogElement>('modal')?.open ? null : dropTarget(e.target)
+  clearDropMarks(hit?.zone)
+  e.dataTransfer!.dropEffect = hit ? 'copy' : 'none'
+  hit?.zone.classList.add('drop-here')
+})
+document.addEventListener('dragleave', e => { if (!e.relatedTarget) clearDropMarks() })
+document.addEventListener('drop', async e => {
+  if (!transferHasImage(e.dataTransfer)) return
+  e.preventDefault(); clearDropMarks()
+  const hit = get<HTMLDialogElement>('modal')?.open ? null : dropTarget(e.target)
+  if (!hit) return
+  try {
+    const file = await fileFromTransfer(e.dataTransfer!)
+    if (!file) return toast('Drop an image file, or an image from a website.', true)
+    await takePhoto(file, hit.target)
+  } catch (error) { toast((error as Error).message, true) }
+})
+document.addEventListener('paste', e => {
+  if (get<HTMLDialogElement>('modal')?.open) return
+  const file = Array.from(e.clipboardData?.items ?? []).map(item => item.kind === 'file' ? item.getAsFile() : null).find(f => f?.type.startsWith('image/'))
+  if (!file) return
+  e.preventDefault(); void takePhoto(file, shownTarget())
+})
 async function boot(){
   app.innerHTML='<div class="loading"><span class="brand-mark">a/d</span><h1>Guide Studio</h1><p>Getting your pages ready…</p></div>'
   try{

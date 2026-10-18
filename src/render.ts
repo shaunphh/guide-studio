@@ -4,7 +4,7 @@ import { photoRect } from './tape/photo'
 import type { CoverBounds } from './cover-bounds'
 import { gxCovers, nearestStatic, stemOf } from './barlow'
 import { adNumber, adStyle } from './adTokens'
-import { META_GREY, coverLook, coverPhoto, designUnlocked, handlesOf, pictureHeight, type Brand, type Crop, type Issue, type Story } from './model'
+import { META_GREY, coverLook, coverPhoto, designUnlocked, handlesOf, pictureHeight, wordCount, type Brand, type Crop, type Issue, type Story } from './model'
 
 export const WIDTH = 1080, HEIGHT = 1350
 /** A story page's spacing, tightened on 5 Oct 2026 so the stories the team writes fit under a two-line
@@ -146,7 +146,8 @@ function photo(ctx: CanvasRenderingContext2D, img: HTMLImageElement | undefined,
 }
 
 /** `headline` is the lettering's own box (before any custom background), for grabbing it on the canvas. */
-export type RenderResult = { errors: string[]; background?: CoverBounds; headline?: CoverBounds }
+/** `fit`, on a story page: the words, and about how many more the room left would take (negative: how many over). */
+export type RenderResult = { errors: string[]; background?: CoverBounds; headline?: CoverBounds; fit?: { words: number; room: number } }
 export async function renderPage(canvas: HTMLCanvasElement, issue: Issue, page: number, brand: Brand, scale = 1): Promise<RenderResult> {
   const look = coverLook(issue, designUnlocked())
   const needed = page === 0 ? Array.from({length:look.count},(_,i)=>coverPhoto(issue,i)) : [issue.stories[page - 1]?.photo || '']
@@ -159,16 +160,16 @@ export async function renderPage(canvas: HTMLCanvasElement, issue: Issue, page: 
   const ctx = out.getContext('2d')!
   ctx.scale(scale, scale); ctx.textAlign = 'left'
   ctx.fillStyle = issue.series === 'picks' ? brand.light : brand.dark; ctx.fillRect(0,0,WIDTH,HEIGHT)
-  let background: CoverBounds | undefined, headline: CoverBounds | undefined
+  let background: CoverBounds | undefined, headline: CoverBounds | undefined, fit: RenderResult['fit']
   if (page === 0) ({ background, headline } = drawCover(ctx, issue, brand, assets, errors))
   else {
     const s = issue.stories[page - 1]
     if (!s) throw new Error('This page no longer exists.')
-    drawStory(ctx, s, page, issue, brand, assets, errors)
+    fit = drawStory(ctx, s, page, issue, brand, assets, errors)
   }
   canvas.width = out.width; canvas.height = out.height
   canvas.getContext('2d')!.drawImage(out,0,0)
-  return { errors: [...new Set(errors)], background, headline }
+  return { errors: [...new Set(errors)], background, headline, fit }
 }
 
 /** Lines as even as they'll go: the narrowest measure that still takes no more lines, so a title
@@ -217,6 +218,12 @@ function drawStory(ctx: CanvasRenderingContext2D, s: Story, number: number, issu
   const bottom = drawBody(ctx, s.body, m, bodyTop, w, brand, bodyInk, titleInk)
   ctx.restore()
   if (bottom > bodyBottom) errors.push('The story runs into the footer. Shorten the copy.')
+  // For the count under the story field (18 Oct 2026): the words, and about how many more the room left would take,
+  // or how many it is over, at this story's own words to a line (a page of nothing is taken at 8.5). Paragraph gaps
+  // make it a rough figure, so the field says "about".
+  const lineStep = brand.bodySize * brand.lineHeight, words = wordCount(s.body)
+  const linesUsed = Math.max(1, Math.round((bottom - bodyTop - brand.bodySize * 1.05) / lineStep) + 1)
+  const fit = { words, room: Math.round(Math.trunc((bodyBottom - bottom) / lineStep) * (words ? words / linesUsed : 8.5)) }
   footerFont(ctx, s.handle); ctx.fillStyle = titleInk
   if (handles.length > 2) errors.push('Keep it to two handles.')
   if (handleLines.length > 2) errors.push('The handles are too long for the footer.')
@@ -228,6 +235,7 @@ function drawStory(ctx: CanvasRenderingContext2D, s: Story, number: number, issu
     infoLines.slice(0,2).forEach((l,i) => ctx.fillText(l,WIDTH-m,footY-(infoLines.length > 1 ? FOOTER.step : 0)+i*FOOTER.step))
     ctx.textAlign = 'left'
   }
+  return fit
 }
 
 /** The page number as Tape Type sets its inside label: lettering on the margin, the tape overhanging it,
