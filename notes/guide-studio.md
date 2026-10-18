@@ -54,6 +54,8 @@ Then **Sign in** in the top bar sends an email link; opened on the same computer
 
 For the posting phone: instagram.com posts carousels from a Mac, so the ZIP can go straight up without the phone; or sign the phone's browser in, open the team guide there and export.
 
+Tried on the real project on 18 October (project `alternative-dublin`, West EU, Ireland): sign-in by link, Save to team, a dropped photo going to the bucket and coming back as a public address the export canvas can draw, the team list, and the cleanup of a photo no longer used. Opening a guide from a second browser was not tried that day. Two things to know: Supabase's built-in mailer sends only a couple of sign-in links an hour on the free plan (it says "email rate limit exceeded"), so before the team signs in, give the project its own sender under Authentication → SMTP settings (Resend's free tier is the usual choice; a domain record and ten minutes) and raise the limit under Authentication → Rate Limits. And the email link opens in the computer's default browser, so to sign a different browser in, copy the link's address out of the email and paste it into that browser.
+
 ## The shared AD tokens
 
 The house style starts from the values every Alternative Dublin tool shares: `src/ad-tokens.json`, copied unchanged from Tape Type with `src/adTokens.ts` (how the tools read it) by `node scripts/sync-tokens.mjs`, which since 18 October also copies the tape engine into `src/tape/` (see Reused foundations). The colours, type sizes and weights, margins, picture height, safe area and mark sizes come from it; House style edits still adjust a library's own copy. To change a shared value, change it in Tape Type, then sync.
