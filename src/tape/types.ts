@@ -2,7 +2,8 @@ export type ShapeMode = 'plain' | 'clean' | 'tape' | 'cling' | 'rough' | 'torn'
 export type TextAlign = 'left' | 'center' | 'right'
 export type CoverFormat = 'regular' | 'series'
 export type CoverStyle = 'headline' | 'feature'
-export type TapeTone = 'light' | 'dark' | 'yellow' | 'none'
+/** The tape's colour: a house tape, Ghost (the dark tape seen through, 18 Oct 2026), or none at all. */
+export type TapeTone = 'light' | 'dark' | 'yellow' | 'ghost' | 'none'
 export type ColumnWidth = 'narrow' | 'medium' | 'wide'
 export type EdgePreference = 'auto' | 'left' | 'right' | 'top' | 'bottom'
 

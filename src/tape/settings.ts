@@ -81,7 +81,7 @@ export function sanitizeSettings(stored: Record<string, unknown>): GeneratorSett
     headline: text(stored.headline, defaults.headline),
     style: oneOf(stored.style, ['headline', 'feature'] as const, defaults.style),
     titleCase: flag(stored.titleCase, defaults.titleCase),
-    tone: oneOf(stored.tone, ['light', 'dark', 'yellow', 'none'] as const, defaults.tone),
+    tone: oneOf(stored.tone, ['light', 'dark', 'yellow', 'ghost', 'none'] as const, defaults.tone),
     eyebrowEnabled: flag(stored.eyebrowEnabled, defaults.eyebrowEnabled),
     eyebrow: text(stored.eyebrow, defaults.eyebrow),
     coverFormat: oneOf(stored.coverFormat, ['regular', 'series'] as const, defaults.coverFormat),

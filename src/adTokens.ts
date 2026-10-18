@@ -76,3 +76,5 @@ export const AD_SIZE = {
 }
 
 export const AD_PHOTO_DARKEN = adNumber('opacity', 'photo-darken')
+/** How far the photo shows through Ghost tape: the dark tape's opacity there (18 October 2026). */
+export const AD_TAPE_GHOST = adNumber('opacity', 'tape-ghost')
