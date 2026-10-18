@@ -60,6 +60,14 @@ The team settled on longer stories in their Canva pages (the Middle-earth quiz, 
 - the footer itself, Condensed SemiBold 36px (was Bold 31px at normal width), as the Canva pages set it: details fit one line more often, and they read bigger. Bold at first; a weight down, as Bold read a little heavy.
 Under a two-line title and a one-line footer the page now holds 10 lines and a paragraph break: both stories fit, as does the Bingo Bilingo one. Saved House styles take 64 and 500 once (brand revision 8).
 
+## Housekeeping (18 October)
+
+From the tools audit of 18 October 2026:
+- The 1×/2× PNG choice sits beside Export guide in the top bar (it was at the foot of the inspector, under Download this page, nowhere near the button that fires at once). One choice still covers both exports.
+- The top actions keep their words down to 1024px; they went to icons alone under 1190px, so on most laptops. Below 1024 they are icons with tooltips.
+- The brand mark takes the brand yellow (`--yellow`, #FFED1F); it was still the old #FFEF3A.
+- The sync copies Tape Type's engine as well as the tokens, so the cuts can't drift again (the engine had stayed at `0615b68` while Tape Type went on to cut its eyebrow tags; Guide Studio cuts its own date strip, so nothing on the pages changed: the cover and a story page were checked pixel for pixel before and after).
+
 ## Hosting (2 October)
 
 Prepared for GitHub Pages like the other tools: `vite.config.ts` builds for `/guide-studio/`, `asset()` resolves public files under that path, `.github/workflows/pages.yml` tests, builds and deploys every push to `main`. Checked: the built site renders every page pixel for pixel like the dev server, Backup still embeds the sample photos, and export works in Safari’s engine (WebKit), which refuses canvases that drew SVG images from `data:` URLs (the event guide’s export broke that way on 2 October). The four sample photos are byte-identical to templates already public in Tape Type’s repo.

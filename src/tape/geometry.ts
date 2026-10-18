@@ -799,12 +799,7 @@ function placeEyebrow(
   if (settings.align === 'right') x = Math.min(x, lettering.right - width + padX)
   // A negative gap sinks the tag 1px into the tape, so no hairline of photo shows between them.
   const y = anchor.top - anchor.gap - height
-  const points = [
-    { x, y },
-    { x: x + width, y },
-    { x: x + width, y: y + height },
-    { x, y: y + height },
-  ].map((point) => ({ x: round(point.x), y: round(point.y) }))
+  const points = cutTag(metrics, { x, y, width, height }, settings)
   // The tag turns with the first strip, around the strip's centre, so it stays seated on it.
   const turned = anchor.angle !== 0
   return {
@@ -819,6 +814,45 @@ function placeEyebrow(
     centerY: round(turned ? anchor.cy : y + height / 2),
     box: { x: round(x), y: round(y), width: round(width), height: round(height) },
   }
+}
+
+/**
+ * The tag's tape, cut like an inside page's label (every AD tag is clean-cut tape, 2 Oct 2026) and
+ * fitted to the tag's own box. The cut is seeded from the cover's, falls on the tag's free end, and
+ * leaves the foot flat where it sits on the tape (turned over when the cut took a bottom corner).
+ */
+function cutTag(metrics: EyebrowMetrics, box: { x: number; y: number; width: number; height: number }, settings: GeneratorSettings): Point[] {
+  const cut = buildTapeShape(
+    { ...settings, headline: metrics.text, style: 'feature', perLine: false, align: 'left', mode: 'clean', preferredEdge: 'right', seed: ((settings.seed ^ 0x5bd1e995) >>> 0) || 1, fontSize: metrics.fontSize, hugStrength: 1, rotationVariance: 0 },
+    [metrics.text],
+    [metrics.width],
+    [metrics.originOffset],
+    { ascent: metrics.capHeight, descent: metrics.fontSize * 0.02 },
+  ).points
+  const xs = cut.map((point) => point.x)
+  const ys = cut.map((point) => point.y)
+  const left = Math.min(...xs)
+  const top = Math.min(...ys)
+  const right = Math.max(...xs)
+  const bottom = Math.max(...ys)
+  // How much of the tag's foot is a straight line along its bottom.
+  const footOf = (points: Point[], foot: number) => {
+    let span = 0
+    points.forEach((point, index) => {
+      const next = points[(index + 1) % points.length]
+      if (Math.abs(point.y - foot) < 0.01 && Math.abs(next.y - foot) < 0.01) span += Math.abs(next.x - point.x)
+    })
+    return span
+  }
+  const flipped = cut.map((point) => ({ x: point.x, y: top + bottom - point.y }))
+  const upright = footOf(flipped, bottom) > footOf(cut, bottom) + 0.5 ? flipped : cut
+  // The free end is the right one, except on right-aligned covers.
+  const mirror = settings.align === 'right'
+  return upright.map((point) => {
+    const u = (point.x - left) / (right - left)
+    const v = (point.y - top) / (bottom - top)
+    return { x: round(box.x + (mirror ? 1 - u : u) * box.width), y: round(box.y + v * box.height) }
+  })
 }
 
 function rotatedCorners(eyebrow: EyebrowShape) {

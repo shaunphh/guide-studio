@@ -44,11 +44,11 @@ The complete library, including uploaded image data and separate crops, is saved
 
 ## The shared AD tokens
 
-The house style starts from the values every Alternative Dublin tool shares: `src/ad-tokens.json`, copied unchanged from Tape Type with `src/adTokens.ts` (how the tools read it) by `node scripts/sync-tokens.mjs`. The colours, type sizes and weights, margins, picture height, safe area and mark sizes come from it; House style edits still adjust a library's own copy. To change a shared value, change it in Tape Type, then sync.
+The house style starts from the values every Alternative Dublin tool shares: `src/ad-tokens.json`, copied unchanged from Tape Type with `src/adTokens.ts` (how the tools read it) by `node scripts/sync-tokens.mjs`, which since 18 October also copies the tape engine into `src/tape/` (see Reused foundations). The colours, type sizes and weights, margins, picture height, safe area and mark sizes come from it; House style edits still adjust a library's own copy. To change a shared value, change it in Tape Type, then sync.
 
 ## Reused foundations
 
-- `src/tape/geometry.ts`, `types.ts`, `settings.ts`, `photo.ts`: copied from Tape Type (`0615b68`) for seeded tape geometry and crop calculations. The existing tools are untouched.
+- `src/tape/geometry.ts`, `types.ts`, `settings.ts`, `photo.ts`: copied unchanged from Tape Type for seeded tape geometry and crop calculations, by `node scripts/sync-tokens.mjs` since 18 October 2026 (last synced from `8a329d5`, what's live; before that a hand copy of `0615b68`, from before Tape Type cut its eyebrow tags). `src/tape/adTokens.ts` is Guide Studio's own line pointing the engine at the tokens copy above. The existing tools are untouched.
 - `src/event-source.js`: Event-guide’s CSV parser. The new importer supports undated stories and longer descriptions instead of enforcing the weekly event schema.
 - Barlow fonts, logo and swipe arrow: Tape Type’s bundled assets.
 - `BarlowGX-Normal.ttf`: Event-guide’s width-pinned variable Barlow, using its native 22–188 weight axis. All upright text is drawn from it (`src/barlow.ts`). Inside titles start at 168, the story-title weight every AD tool shares, and the cover date at 166, ExtraBold, the weight of every AD tag; both keep fine weight controls in House style.

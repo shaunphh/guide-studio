@@ -1,9 +1,11 @@
 import type { ColumnWidth, CoverStyle, GeneratorSettings } from './types'
+import { AD_SPACE } from './adTokens'
 
 export const STORAGE_KEY = 'tape-type-settings-v7'
 export const ARTBOARD_WIDTH = 1080
 export const ARTBOARD_HEIGHT = 1350
-export const SAFE_MARGIN = 80
+/** Covers' lettering keeps this far from every edge (the tokens' safe-cover). */
+export const SAFE_MARGIN = AD_SPACE.safeCover
 export const TEXT_AREA_WIDTH = ARTBOARD_WIDTH - SAFE_MARGIN * 2
 
 /** A cover's size, and the part of it that lettering is kept to. */
