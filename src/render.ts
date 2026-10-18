@@ -25,6 +25,8 @@ const LABEL = { size: adStyle('label').size, weight: adStyle('label').weight }
 const COVER_WEIGHT = adStyle('cover-carousel').weight, SUPPORTING_WEIGHT = adStyle('supporting-line').weight
 /** Tape Type's eyebrow tag (geometry.ts), in ems of the tag's size: the cover date strip is one. */
 const TAG_PADDING = { x: .45, top: .4, bottom: .22 }
+/** What's New covers: a dark gradient over the foot, clear at its top and `opacity` at the bottom edge, under the supporting line and the arrow (18 Oct 2026). */
+const FOOT_SCRIM = { height: 420, opacity: adNumber('opacity', 'cover-foot-scrim') }
 const images = new Map<string, Promise<HTMLImageElement>>()
 const loaded = new Map<string, HTMLImageElement>()
 /** A file from public/ wherever the app is served from: the root locally, /guide-studio/ on GitHub Pages. Pages keep root paths such as /photos/pub.jpg. */
@@ -306,6 +308,12 @@ function drawCover(ctx: CanvasRenderingContext2D, issue: Issue, brand: Brand, as
     photo(ctx, assets[source], c.crops[i], x, y, w, h, c.scrim)
     if (!source) errors.push(`Choose a photo for collage position ${i+1}.`)
   })
+  if (look.showSubtitle) {
+    // The team's photos are what they are: white words at the foot need a ground of their own.
+    const foot = ctx.createLinearGradient(0, HEIGHT - FOOT_SCRIM.height, 0, HEIGHT)
+    foot.addColorStop(0, 'rgba(0,0,0,0)'); foot.addColorStop(1, `rgba(0,0,0,${FOOT_SCRIM.opacity})`)
+    ctx.fillStyle = foot; ctx.fillRect(0, HEIGHT - FOOT_SCRIM.height, WIDTH, FOOT_SCRIM.height)
+  }
   const markInk = look.markColour === 'yellow' ? brand.yellow : look.markColour === 'dark' ? brand.dark : brand.light
   const logo = assets[`/logo-${look.logoPosition === 'left' ? 'left' : 'right'}.svg`], arrow = assets['/swipe-arrow.svg']
   const logoFoot = SAFE + (logo ? LOGO_WIDTH * logo.naturalHeight / logo.naturalWidth : 87), arrowTop = HEIGHT - SAFE - (arrow ? ARROW_WIDTH * arrow.naturalHeight / arrow.naturalWidth : 87)
