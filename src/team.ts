@@ -66,13 +66,20 @@ export async function saveGuide(issue: Issue, email: string, force = false): Pro
   const { team, ...rest } = withPhotoUrls(issue, dataUrl => urls.get(dataUrl))
   const record = { id: issue.id, name: issue.name, series: issue.series, issue: rest, updated_by: email }
   let row: TeamRow
-  if (!team) {
+  if (!team && !force) {
     const { data, error } = await supabase().from('guides').insert(record).select(ROW).single()
+    if (error?.code === '23505') {
+      // A row with this id is already on the team: this browser's copy lost its link, or the guide came in by
+      // backup from a browser that saved it. The person settles it, as with any other conflict.
+      const { data: current, error: readError } = await supabase().from('guides').select(ROW).eq('id', issue.id).maybeSingle()
+      fail('Couldn’t save to the team', readError)
+      if (current) return { conflict: current as TeamRow }
+    }
     fail('Couldn’t save to the team', error)
     row = data as TeamRow
   } else {
     let query = supabase().from('guides').update(record).eq('id', issue.id)
-    if (!force) query = query.eq('updated_at', team.updatedAt)
+    if (!force && team) query = query.eq('updated_at', team.updatedAt)
     const { data, error } = await query.select(ROW)
     fail('Couldn’t save to the team', error)
     if (data?.length) row = data[0] as TeamRow

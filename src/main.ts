@@ -546,8 +546,8 @@ async function saveToTeam(force=false){
     await flushSave()
     const result=await (await team()).saveGuide(clone(issue()),email,force)
     if('conflict' in result){
-      const row=result.conflict
-      modal('The team copy has moved on',`<p class="muted"><b>${escape(describeSave(row))}</b> saved this guide after you took your copy. Overwrite the team copy with yours, or keep yours as a guide of its own on the team.</p>`,`<button id="conflict-copy" class="secondary">Keep mine as a copy</button><button id="conflict-overwrite" class="primary">Overwrite</button>`)
+      const row=result.conflict,linked=!!issue().team
+      modal(linked?'The team copy has moved on':'This guide is already on the team',`<p class="muted">${linked?`<b>${escape(describeSave(row))}</b> saved this guide after you took your copy.`:`The team has a copy of it (<b>${escape(describeSave(row))}</b>) that this browser's copy isn't linked to.`} Overwrite the team copy with yours, or keep yours as a guide of its own on the team.</p>`,`<button id="conflict-copy" class="secondary">Keep mine as a copy</button><button id="conflict-overwrite" class="primary">Overwrite</button>`)
       get('conflict-overwrite').onclick=()=>{get<HTMLDialogElement>('modal').close();void saveToTeam(true)}
       get('conflict-copy').onclick=()=>{get<HTMLDialogElement>('modal').close();change('team-copy',()=>{const copy=issue();copy.id=newId();copy.name+=` · ${email.split('@')[0]}`;copy.team=undefined;library.activeId=copy.id},true);void saveToTeam()}
       return
