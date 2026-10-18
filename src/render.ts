@@ -243,12 +243,12 @@ function drawStory(ctx: CanvasRenderingContext2D, s: Story, number: number, issu
 }
 
 /** The page number as Tape Type sets its inside label: lettering on the margin, the tape overhanging it,
- *  here seated across the foot of the picture. */
+ *  here seated across the foot of the picture. Its cut only adds (18 Oct 2026): the tape keeps its padding whole. */
 function drawNumber(ctx: CanvasRenderingContext2D, number: string, x: number, centreY: number, brand: Brand) {
   font(ctx, LABEL.size, LABEL.weight, false, number)
   // Figures have no descenders, so the tape is balanced on the cap height, as Tape Type's label is.
   const ascent = Math.max(ctx.measureText('H').actualBoundingBoxAscent, ctx.measureText(number).actualBoundingBoxAscent)
-  const shape = buildShape({ ...defaults, headline: number, style: 'feature', perLine: false, align: 'left', mode: 'clean', fontSize: LABEL.size, hugStrength: 1, rotationVariance: 0 }, [number], [ctx.measureText(number).width], [], { ascent, descent: LABEL.size * .02 })
+  const shape = buildShape({ ...defaults, headline: number, style: 'feature', perLine: false, align: 'left', mode: 'clean', fontSize: LABEL.size, hugStrength: 1, rotationVariance: 0, cutOutside: true }, [number], [ctx.measureText(number).width], [], { ascent, descent: LABEL.size * .02 })
   const ys = shape.points.map(point => point.y), line = shape.lines[0]
   ctx.save(); ctx.translate(x, centreY - (Math.min(...ys) + Math.max(...ys)) / 2)
   ctx.fillStyle = brand.yellow; ctx.fill(new Path2D(shape.path))
@@ -258,8 +258,9 @@ function drawNumber(ctx: CanvasRenderingContext2D, number: string, x: number, ce
 
 /**
  * A tag above the cover headline, as Tape Type cuts its eyebrows (2 Oct 2026): capitals on tape with
- * the label's clean cut, fitted to the tag's box, the cut on its free (right) end and its foot flat.
- * `weight` is on the variable font's scale (ExtraBold is 166). Returns the tag's width.
+ * the label's clean cut, fitted to the tag's box by the tape around its lettering, the cut on its free
+ * (right) end. Since 18 Oct 2026 the cut only adds, so the foot is flat by construction and the cut's
+ * additions reach past the box. `weight` is on the variable font's scale (ExtraBold is 166). Returns the tag's width.
  */
 function drawTag(ctx: CanvasRenderingContext2D, text: string, centreX: number, centreY: number, size: number, weight: number, angle: number, fill: string, ink: string, seed: number) {
   variableFont(ctx, size, weight, text)
@@ -267,15 +268,11 @@ function drawTag(ctx: CanvasRenderingContext2D, text: string, centreX: number, c
   const capHeight = ctx.measureText('H').actualBoundingBoxAscent || size * .7
   const padX = size * TAG_PADDING.x, padTop = size * TAG_PADDING.top
   const box = { width: width + padX * 2, height: capHeight + padTop + size * TAG_PADDING.bottom }
-  const cut = buildShape({ ...defaults, headline: text, style: 'feature', perLine: false, align: 'left', mode: 'clean', preferredEdge: 'right', seed: ((seed ^ 0x5bd1e995) >>> 0) || 1, fontSize: size, hugStrength: 1, rotationVariance: 0 }, [text], [width], [], { ascent: capHeight, descent: size * .02 }).points
-  const xs = cut.map(point => point.x), ys = cut.map(point => point.y)
-  const left = Math.min(...xs), top = Math.min(...ys), right = Math.max(...xs), bottom = Math.max(...ys)
-  // How much of the foot is a straight line along the bottom; turned over when the cut took a bottom corner.
-  const footOf = (points: { x: number; y: number }[]) => points.reduce((span, point, i) => { const next = points[(i + 1) % points.length]; return Math.abs(point.y - bottom) < .01 && Math.abs(next.y - bottom) < .01 ? span + Math.abs(next.x - point.x) : span }, 0)
-  const flipped = cut.map(point => ({ x: point.x, y: top + bottom - point.y }))
-  const upright = footOf(flipped) > footOf(cut) + .5 ? flipped : cut
+  const shape = buildShape({ ...defaults, headline: text, style: 'feature', perLine: false, align: 'left', mode: 'clean', preferredEdge: 'right', seed: ((seed ^ 0x5bd1e995) >>> 0) || 1, fontSize: size, hugStrength: 1, rotationVariance: 0, cutOutside: true }, [text], [width], [], { ascent: capHeight, descent: size * .02 })
+  const cut = shape.points, xs = cut.map(point => point.x), ys = cut.map(point => point.y)
+  const { left, top, right, bottom } = shape.padded ?? { left: Math.min(...xs), top: Math.min(...ys), right: Math.max(...xs), bottom: Math.max(...ys) }
   const tape = new Path2D()
-  upright.forEach((point, i) => { const x = (point.x - left) / (right - left) * box.width, y = (point.y - top) / (bottom - top) * box.height; if (i) tape.lineTo(x, y); else tape.moveTo(x, y) })
+  cut.forEach((point, i) => { const x = (point.x - left) / (right - left) * box.width, y = (point.y - top) / (bottom - top) * box.height; if (i) tape.lineTo(x, y); else tape.moveTo(x, y) })
   tape.closePath()
   ctx.save(); ctx.translate(centreX, centreY); ctx.rotate(angle); ctx.translate(-box.width / 2, -box.height / 2)
   ctx.fillStyle = fill; ctx.fill(tape)

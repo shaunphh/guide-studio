@@ -62,6 +62,7 @@ export const defaults: GeneratorSettings = {
   mode: 'plain',
   seed: 18473562,
   seedLocked: false,
+  cutOutside: false,
 }
 
 function oneOf<T>(value: unknown, allowed: readonly T[], fallback: T): T {
@@ -97,6 +98,7 @@ export function sanitizeSettings(stored: Record<string, unknown>): GeneratorSett
     mode: oneOf(stored.mode, ['plain', 'clean', 'tape', 'cling', 'rough', 'torn'] as const, defaults.mode),
     seed: Math.max(1, Math.floor(numberIn(stored.seed, 1, 4294967295, defaults.seed))),
     seedLocked: flag(stored.seedLocked, defaults.seedLocked),
+    cutOutside: flag(stored.cutOutside, defaults.cutOutside),
   }
 }
 

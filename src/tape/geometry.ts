@@ -248,7 +248,7 @@ function mutateEdge(
   return [...points.slice(0, index + 1), ...inserts, ...points.slice(index + 1)]
 }
 
-function slantEdge(points: Point[], edge: Edge, depth: number, random: () => number) {
+function slantEdge(points: Point[], edge: Edge, depth: number, random: () => number, alongAxis = false) {
   const result = points.map((point) => ({ ...point }))
   const dx = edge.b.x - edge.a.x
   const dy = edge.b.y - edge.a.y
@@ -258,12 +258,18 @@ function slantEdge(points: Point[], edge: Edge, depth: number, random: () => num
   const moveStart = random() < 0.5
   const index = moveStart ? edge.index : (edge.index + 1) % result.length
   const amount = depth * (0.34 + random() * 0.18)
-  result[index].x += nx * amount
-  result[index].y += ny * amount
+  if (alongAxis) {
+    // Cuts that only add: the end moves straight out along the side's axis, never a hair into the padding.
+    result[index].x += edge.side === 'right' ? amount : edge.side === 'left' ? -amount : 0
+    result[index].y += edge.side === 'bottom' ? amount : edge.side === 'top' ? -amount : 0
+  } else {
+    result[index].x += nx * amount
+    result[index].y += ny * amount
+  }
   return result
 }
 
-function clipCorner(points: Point[], side: Exclude<EdgePreference, 'auto'>, target: Point, amount: number) {
+function clipCorner(points: Point[], side: Exclude<EdgePreference, 'auto'>, target: Point, amount: number, grow = false) {
   const candidates = points.map((point, index) => {
     const previous = points[(index - 1 + points.length) % points.length]
     const next = points[(index + 1) % points.length]
@@ -277,9 +283,28 @@ function clipCorner(points: Point[], side: Exclude<EdgePreference, 'auto'>, targ
   if (!candidates.length) return points
   candidates.sort((a, b) => a.score - b.score)
   const chosen = candidates[0]
-  const before = pointAlong(chosen.point, chosen.previous, amount / chosen.previousLength)
-  const after = pointAlong(chosen.point, chosen.next, amount / chosen.nextLength)
-  return [...points.slice(0, chosen.index), before, after, ...points.slice(chosen.index + 1)]
+  let base = points
+  let { point: corner, previous, next, previousLength, nextLength } = chosen
+  if (grow) {
+    // Cuts that only add (18 Oct 2026): the corner's upright edge is first pushed out sideways by the cut, so the
+    // chamfer stays beyond the tape's padding and the tape's top and bottom stay flat (a tag's foot on its line).
+    const count = points.length
+    const previousIndex = (chosen.index - 1 + count) % count
+    const nextIndex = (chosen.index + 1) % count
+    const steepness = (a: Point, b: Point) => Math.abs(b.y - a.y) - Math.abs(b.x - a.x)
+    const uprightIndex = steepness(corner, previous) >= steepness(corner, next) ? previousIndex : nextIndex
+    const xs = points.map((entry) => entry.x)
+    const dx = corner.x >= (Math.min(...xs) + Math.max(...xs)) / 2 ? amount : -amount
+    base = points.map((entry, index) => index === chosen.index || index === uprightIndex ? { x: entry.x + dx, y: entry.y } : entry)
+    corner = base[chosen.index]
+    previous = base[previousIndex]
+    next = base[nextIndex]
+    previousLength = Math.hypot(corner.x - previous.x, corner.y - previous.y)
+    nextLength = Math.hypot(next.x - corner.x, next.y - corner.y)
+  }
+  const before = pointAlong(corner, previous, amount / previousLength)
+  const after = pointAlong(corner, next, amount / nextLength)
+  return [...base.slice(0, chosen.index), before, after, ...base.slice(chosen.index + 1)]
 }
 
 function indexOfExtreme(values: number[], direction: 'min' | 'max') {
@@ -427,8 +452,9 @@ function makeBasePolygon(
   return points
 }
 
-function addVerticalEdgeLeans(points: Point[], random: () => number, energy: number) {
+function addVerticalEdgeLeans(points: Point[], random: () => number, energy: number, outwardOnly = false) {
   const result = points.map((point) => ({ ...point }))
+  const middleX = (Math.min(...result.map((point) => point.x)) + Math.max(...result.map((point) => point.x))) / 2
   const candidates = result.map((point, index) => {
     const next = result[(index + 1) % result.length]
     return { index, length: Math.abs(next.y - point.y), horizontalChange: Math.abs(next.x - point.x) }
@@ -440,11 +466,27 @@ function addVerticalEdgeLeans(points: Point[], random: () => number, energy: num
     const [choice] = candidates.splice(choiceIndex, 1)
     if (!choice) break
     const endpoint = (choice.index + 1) % result.length
-    const direction = random() < 0.5 ? -1 : 1
+    const directionRoll = random()
+    // With cuts that only add, a lean goes outward, so it never crosses the padding.
+    const direction = outwardOnly ? (result[endpoint].x >= middleX ? 1 : -1) : directionRoll < 0.5 ? -1 : 1
     const amount = 0.8 + random() * Math.min(2.8, energy * 0.04)
     result[endpoint].x += direction * amount
   }
   return result
+}
+
+/**
+ * Cuts that only add (settings.cutOutside, 18 Oct 2026): `edge` pushed out by `depth` along its outward
+ * normal (the way a tab goes), so a bite or notch taken from it leaves the tape inside the padding whole.
+ */
+function growEdge(points: Point[], edge: Edge, depth: number): { points: Point[]; edge: Edge } {
+  if (depth <= 0) return { points, edge }
+  // Along the side's own axis, not the edge's normal: a leaned edge would otherwise pull its far corner in a hair.
+  const dx = edge.side === 'right' ? depth : edge.side === 'left' ? -depth : 0
+  const dy = edge.side === 'bottom' ? depth : edge.side === 'top' ? -depth : 0
+  const nextIndex = (edge.index + 1) % points.length
+  const moved = points.map((point, index) => index === edge.index || index === nextIndex ? { x: point.x + dx, y: point.y + dy } : point)
+  return { points: moved, edge: { ...edge, a: moved[edge.index], b: moved[nextIndex] } }
 }
 
 function closestEdgeToLine(edges: Edge[], side: Edge['side'], lineCenterY: number, targetX: number) {
@@ -589,6 +631,7 @@ function buildSeparateShape(
     ? stripHeight + settings.lineGap
     : Math.max(glyphHeight * 0.86, glyphHeight + settings.lineGap)
   let anchor: ShapeResult['anchor']
+  let padded: ShapeResult['padded']
 
   lines.forEach((line, index) => {
     // Each strip draws from its own random stream, and always in the same order, so a
@@ -605,13 +648,15 @@ function buildSeparateShape(
     let right = inkX + line.width + padding.right
     const top = index * stripStep
     const bottom = top + stripHeight
+    if (index === 0) padded = { left, right, top, bottom }
     const naturalSide = settings.align === 'right' ? 'left' : 'right'
 
     if (!plain && index === personality.targetLine) {
       if (personality.lineTreatment === 'extend') {
         if (naturalSide === 'right') right += structuralDepth * 0.34
         else left -= structuralDepth * 0.34
-      } else if (personality.lineTreatment === 'tuck') {
+      } else if (personality.lineTreatment === 'tuck' && !settings.cutOutside) {
+        // A tuck pulls the tape into its padding: with cuts that only add, the line stays as it is.
         const tuck = Math.min(Math.max(0, padding.horizontal) * 0.35, structuralDepth * 0.16)
         if (naturalSide === 'right') right -= tuck
         else left += tuck
@@ -620,8 +665,11 @@ function buildSeparateShape(
     const base = { left, right, top }
 
     const lean = plain ? 0 : 0.7 + random() * Math.min(2.5, energy * 0.038)
-    const leanRight = random() < 0.5 ? -lean : lean
-    const leanLeft = random() < 0.5 ? -lean * 0.55 : lean * 0.55
+    // With cuts that only add, the leans go outward, so they never cross the padding.
+    const leanRightRoll = random()
+    const leanRight = settings.cutOutside ? lean : leanRightRoll < 0.5 ? -lean : lean
+    const leanLeftRoll = random()
+    const leanLeft = settings.cutOutside ? -lean * 0.55 : leanLeftRoll < 0.5 ? -lean * 0.55 : lean * 0.55
     let points: Point[] = [
       { x: left, y: top },
       { x: right, y: top },
@@ -637,7 +685,8 @@ function buildSeparateShape(
       if (acceptsCut(points, torn, samples)) points = torn
     } else if (index === personality.targetLine) {
       if (personality.primary === 'clip') {
-        const clipped = clipCorner(points, personality.edge, { x: naturalSide === 'right' ? right : left, y: (top + bottom) / 2 }, Math.min(10, 4 + structuralDepth * 0.22))
+        const amount = Math.min(10, 4 + structuralDepth * 0.22)
+        const clipped = clipCorner(points, personality.edge, { x: naturalSide === 'right' ? right : left, y: (top + bottom) / 2 }, amount, settings.cutOutside)
         if (acceptsCut(points, clipped, samples)) points = clipped
       } else {
         const requested = eligibleEdges(points, personality.edge, 18)
@@ -652,15 +701,19 @@ function buildSeparateShape(
           const centerBias = edge.side === 'top' || edge.side === 'bottom'
             ? naturalSide === 'right' ? 0.78 : 0.22
             : undefined
+          const inward = personality.primary === 'bite' || personality.primary === 'notch' ? depth : 0
+          const room = settings.cutOutside ? growEdge(points, edge, inward) : { points, edge }
           const mutated = personality.primary === 'slant'
-            ? slantEdge(points, edge, structuralDepth, random)
-            : mutateEdge(points, edge, personality.primary, depth, random, centerBias)
+            ? slantEdge(room.points, room.edge, structuralDepth, random, settings.cutOutside)
+            : mutateEdge(room.points, room.edge, personality.primary, depth, random, centerBias)
           if (acceptsCut(points, mutated, samples)) points = mutated
         }
       }
     } else if (random() < 0.34) {
       const side: Edge['side'] = naturalSide === 'right' ? 'right' : 'left'
-      const clipped = clipCorner(points, side, { x: naturalSide === 'right' ? right : left, y: random() < 0.5 ? top : bottom }, 3 + random() * 3)
+      const cornerY = random() < 0.5 ? top : bottom
+      const amount = 3 + random() * 3
+      const clipped = clipCorner(points, side, { x: naturalSide === 'right' ? right : left, y: cornerY }, amount, settings.cutOutside)
       if (acceptsCut(points, clipped, samples)) points = clipped
     }
 
@@ -685,6 +738,7 @@ function buildSeparateShape(
     strips,
     lines: stripLines,
     anchor,
+    padded,
     viewBox: viewBoxOf(rotatedPoints, 7),
     personality: plain ? `${strips.length} strips · plain` : `${strips.length} strips · ${settings.mode === 'torn' ? 'torn' : personality.primary} on line ${personality.targetLine + 1}`,
   }
@@ -818,37 +872,27 @@ function placeEyebrow(
 
 /**
  * The tag's tape, cut like an inside page's label (every AD tag is clean-cut tape, 2 Oct 2026) and
- * fitted to the tag's own box. The cut is seeded from the cover's, falls on the tag's free end, and
- * leaves the foot flat where it sits on the tape (turned over when the cut took a bottom corner).
+ * fitted to the tag's own box by the tape around its lettering. The cut is seeded from the cover's, falls on
+ * the tag's free end, and only adds to the tag's padding (18 Oct 2026), so the foot stays flat where it
+ * sits on the tape (until then a cut could take a bottom corner, and the tag was turned over).
  */
 function cutTag(metrics: EyebrowMetrics, box: { x: number; y: number; width: number; height: number }, settings: GeneratorSettings): Point[] {
-  const cut = buildTapeShape(
-    { ...settings, headline: metrics.text, style: 'feature', perLine: false, align: 'left', mode: 'clean', preferredEdge: 'right', seed: ((settings.seed ^ 0x5bd1e995) >>> 0) || 1, fontSize: metrics.fontSize, hugStrength: 1, rotationVariance: 0 },
+  const shape = buildTapeShape(
+    { ...settings, headline: metrics.text, style: 'feature', perLine: false, align: 'left', mode: 'clean', preferredEdge: 'right', seed: ((settings.seed ^ 0x5bd1e995) >>> 0) || 1, fontSize: metrics.fontSize, hugStrength: 1, rotationVariance: 0, cutOutside: true },
     [metrics.text],
     [metrics.width],
     [metrics.originOffset],
     { ascent: metrics.capHeight, descent: metrics.fontSize * 0.02 },
-  ).points
+  )
+  const cut = shape.points
+  // The tape around the lettering before any cut is what the tag's box is fitted by; the cut's additions reach past it.
   const xs = cut.map((point) => point.x)
   const ys = cut.map((point) => point.y)
-  const left = Math.min(...xs)
-  const top = Math.min(...ys)
-  const right = Math.max(...xs)
-  const bottom = Math.max(...ys)
-  // How much of the tag's foot is a straight line along its bottom.
-  const footOf = (points: Point[], foot: number) => {
-    let span = 0
-    points.forEach((point, index) => {
-      const next = points[(index + 1) % points.length]
-      if (Math.abs(point.y - foot) < 0.01 && Math.abs(next.y - foot) < 0.01) span += Math.abs(next.x - point.x)
-    })
-    return span
-  }
-  const flipped = cut.map((point) => ({ x: point.x, y: top + bottom - point.y }))
-  const upright = footOf(flipped, bottom) > footOf(cut, bottom) + 0.5 ? flipped : cut
+  const { left, right, top, bottom } = shape.padded ?? { left: Math.min(...xs), right: Math.max(...xs), top: Math.min(...ys), bottom: Math.max(...ys) }
+  // The foot is flat by construction now (a cut only adds, and sideways at a corner), so the tag is never turned over.
   // The free end is the right one, except on right-aligned covers.
   const mirror = settings.align === 'right'
-  return upright.map((point) => {
+  return cut.map((point) => {
     const u = (point.x - left) / (right - left)
     const v = (point.y - top) / (bottom - top)
     return { x: round(box.x + (mirror ? 1 - u : u) * box.width), y: round(box.y + v * box.height) }
@@ -916,6 +960,7 @@ function buildTapeShape(
   const lefts: number[] = []
   const rights: number[] = []
   const lines: TextLine[] = []
+  let padded: ShapeResult['padded']
 
   effectiveWidths.forEach((effectiveWidth, index) => {
     const measuredWidth = widths[index]
@@ -928,7 +973,10 @@ function buildTapeShape(
     if (settings.align === 'right') blockX = maxMeasured - effectiveWidth
 
     const offsetRoll = random()
-    const naturalOffset = plain || index === personality.targetLine ? 0 : (offsetRoll - 0.5) * energy * 0.025
+    const naturalOffsetRoll = plain || index === personality.targetLine ? 0 : (offsetRoll - 0.5) * energy * 0.025
+    // With cuts that only add, a line's natural offset goes outward, never into the padding.
+    const naturalOffset = settings.cutOutside ? Math.abs(naturalOffsetRoll) : naturalOffsetRoll
+    if (index === 0) padded = { left: blockX - padding.left, right: blockX + effectiveWidth + padding.right, top, bottom }
     lefts.push(blockX - padding.left + (settings.align === 'right' ? naturalOffset : 0))
     rights.push(blockX + effectiveWidth + padding.right + (settings.align !== 'right' ? naturalOffset : 0))
     lines.push({
@@ -956,6 +1004,7 @@ function buildTapeShape(
       path: pointsToPath(points),
       lines,
       anchor: { left: lefts[0], right: rights[0], top, angle: 0, cx: 0, cy: 0 },
+      padded,
       viewBox: viewBoxOf(points, 6),
       personality: `plain · ${lines.length} line${lines.length === 1 ? '' : 's'}`,
     }
@@ -971,7 +1020,9 @@ function buildTapeShape(
     if (treatmentSide === 'right') rights[target] += structuralDepth * 0.42
     else lefts[target] -= structuralDepth * 0.42
   } else if (personality.lineTreatment === 'tuck') {
-    if (treatmentSide === 'right') rights[target] -= Math.min(inwardLimit, structuralDepth * 0.2)
+    // A tuck pulls the tape into its padding: with cuts that only add, the line stays as it is.
+    if (settings.cutOutside) { /* kept whole */ }
+    else if (treatmentSide === 'right') rights[target] -= Math.min(inwardLimit, structuralDepth * 0.2)
     else lefts[target] += Math.min(inwardLimit, structuralDepth * 0.2)
   } else {
     const offset = structuralDepth * 0.22
@@ -981,11 +1032,12 @@ function buildTapeShape(
   // The first line's edges before any cut: the eyebrow seats here, not on a tab or raised corner.
   const anchor = { left: lefts[0], right: rights[0], top, angle: 0, cx: 0, cy: 0 }
 
-  const baseJoin: JoinTreatment = settings.mode === 'clean' ? 'square' : 'angled'
+  // Joins step straight across with cuts that only add: an angled, stepped or tucked join would cross a line's padding.
+  const baseJoin: JoinTreatment = settings.mode === 'clean' || settings.cutOutside ? 'square' : 'angled'
   const joins = boundaries.map((_, index) => {
     const difference = Math.abs(rights[index] - rights[index + 1]) + Math.abs(lefts[index] - lefts[index + 1])
     if (index !== personality.focalJoin || difference < 10) return baseJoin
-    return personality.joinTreatment
+    return settings.cutOutside ? 'square' : personality.joinTreatment
   })
   // A step keeps at least a pixel clear of the letters it runs past.
   const clearances = boundaries.map((y, index) => ({
@@ -995,7 +1047,7 @@ function buildTapeShape(
   const joinDepth = Math.min(lineHeightPx * 0.22, 4 + energy * 0.075)
   const basePoints = makeBasePolygon(lefts, rights, top, bottom, boundaries, joins, joinDepth, Math.max(0, horizontalPadding), clearances)
   const samples = inkSamples(lines, ascent, descent)
-  const leanedPoints = addVerticalEdgeLeans(basePoints, random, energy)
+  const leanedPoints = addVerticalEdgeLeans(basePoints, random, energy, settings.cutOutside)
   let points = acceptsCut(basePoints, leanedPoints, samples) ? leanedPoints : basePoints
 
   const targetCenterY = verticalPadding + settings.fontSize / 2 + target * lineHeightPx
@@ -1005,8 +1057,11 @@ function buildTapeShape(
   const fallbacks = eligibleEdges(points, treatmentSide, minimumEdge)
   const candidates = primaryCandidates.length ? primaryCandidates : fallbacks
 
+  // Cuts that only add (settings.cutOutside): a corner clip first pushes its upright edge out sideways, and a bite
+  // or notch its own edge, by the cut's depth, so the tape's padding stays whole; a slant, tab or step only ever adds.
   if (personality.primary === 'clip') {
-    const clipped = clipCorner(points, personality.edge, { x: targetX, y: targetCenterY }, Math.min(13, 5 + structuralDepth * 0.28))
+    const amount = Math.min(13, 5 + structuralDepth * 0.28)
+    const clipped = clipCorner(points, personality.edge, { x: targetX, y: targetCenterY }, amount, settings.cutOutside)
     if (acceptsCut(points, clipped, samples)) points = clipped
   } else if (candidates.length) {
     const edge = closestEdgeToLine(candidates, personality.edge, targetCenterY, targetX)
@@ -1017,24 +1072,30 @@ function buildTapeShape(
     const centerBias = edge.side === 'top' || edge.side === 'bottom'
       ? treatmentSide === 'right' ? 0.78 : 0.22
       : undefined
+    const inward = personality.primary === 'bite' || personality.primary === 'notch' ? safeDepth : 0
+    const room = settings.cutOutside ? growEdge(points, edge, inward) : { points, edge }
     const mutated = personality.primary === 'slant'
-      ? slantEdge(points, edge, structuralDepth, random)
-      : mutateEdge(points, edge, personality.primary, safeDepth, random, centerBias)
+      ? slantEdge(room.points, room.edge, structuralDepth, random, settings.cutOutside)
+      : mutateEdge(room.points, room.edge, personality.primary, safeDepth, random, centerBias)
     if (acceptsCut(points, mutated, samples)) points = mutated
   }
 
   if (personality.secondary) {
     const opposite: Record<Edge['side'], Edge['side']> = { left: 'bottom', right: 'top', top: 'left', bottom: 'right' }
     const secondarySide = opposite[personality.edge]
+    const secondaryY = boundaries[personality.focalJoin] ?? targetCenterY
     if (personality.secondary === 'clip') {
-      const clipped = clipCorner(points, secondarySide, { x: targetX, y: boundaries[personality.focalJoin] ?? targetCenterY }, 5 + structuralDepth * 0.14)
+      const amount = 5 + structuralDepth * 0.14
+      const clipped = clipCorner(points, secondarySide, { x: targetX, y: secondaryY }, amount, settings.cutOutside)
       if (acceptsCut(points, clipped, samples)) points = clipped
     } else {
       const secondaryCandidates = eligibleEdges(points, secondarySide, 22)
       if (secondaryCandidates.length) {
-        const edge = closestEdgeToLine(secondaryCandidates, secondarySide, boundaries[personality.focalJoin] ?? targetCenterY, targetX)
+        const edge = closestEdgeToLine(secondaryCandidates, secondarySide, secondaryY, targetX)
         const edgePadding = Math.max(1, edge.side === 'left' || edge.side === 'right' ? horizontalPadding : verticalPadding)
-        const mutated = mutateEdge(points, edge, personality.secondary, Math.min(edgePadding * 0.3, structuralDepth * 0.16), random)
+        const depth = Math.min(edgePadding * 0.3, structuralDepth * 0.16)
+        const room = settings.cutOutside ? growEdge(points, edge, depth) : { points, edge }
+        const mutated = mutateEdge(room.points, room.edge, personality.secondary, depth, random)
         if (acceptsCut(points, mutated, samples)) points = mutated
       }
     }
@@ -1045,6 +1106,7 @@ function buildTapeShape(
     path: pointsToPath(points),
     lines,
     anchor,
+    padded,
     viewBox: viewBoxOf(points, 6),
     personality: `${personality.primary} · line ${target + 1} · ${personality.edge} · ${personality.joinTreatment} join`,
   }

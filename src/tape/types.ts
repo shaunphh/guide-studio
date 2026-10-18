@@ -27,6 +27,8 @@ export interface GeneratorSettings {
   mode: ShapeMode
   seed: number
   seedLocked: boolean
+  /** Cuts that only add (18 Oct 2026): the edge a cut is taken from is pushed out by the cut's depth first, so the tape never gives up its padding. For tags; off on covers. */
+  cutOutside: boolean
 }
 
 export interface Point {
@@ -81,6 +83,8 @@ export interface ShapeResult {
   eyebrow?: EyebrowShape
   /** Extent of all lettering (headline ink and eyebrow text, turned with any rotation): what the safe area protects. */
   inkBox?: { left: number; right: number; top: number; bottom: number }
+  /** The tape around the first line before any cut, lettering plus padding: with cuts that only add, what the tape always covers; a tag is fitted by it. */
+  padded?: { left: number; right: number; top: number; bottom: number }
   /** The first line's tape before any cut, and its rotation: where the eyebrow is seated. */
   anchor?: { left: number; right: number; top: number; angle: number; cx: number; cy: number }
   viewBox: { x: number; y: number; width: number; height: number }
