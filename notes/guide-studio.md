@@ -40,7 +40,19 @@ The hosted site keeps its own library, separate from the local one at 127.0.0.1:
 
 ## Saving
 
-The complete library, including uploaded image data and separate crops, is saved in IndexedDB. Save failures are visible. This is local to the browser and origin (including port): there are no accounts, cloud storage or cross-device collaboration. Use Backup for a portable `.guide.json` containing the complete issue, actual image data and house styles. Restore creates a new issue and explicitly lets you choose whether to apply its saved styles globally. Undo/redo is available during a session; it is not a persistent version history. Browser storage clearing removes local drafts, so keep backups for important work. Avoid editing the same local library in multiple tabs simultaneously.
+The complete library, including uploaded image data and separate crops, is saved in IndexedDB. Save failures are visible. This is local to the browser and origin (including port): there are no accounts, cloud storage or cross-device collaboration, apart from the team library below once it is set up. Use Backup for a portable `.guide.json` containing the complete issue, actual image data and house styles. Restore creates a new issue and explicitly lets you choose whether to apply its saved styles globally. Undo/redo is available during a session; it is not a persistent version history. Browser storage clearing removes local drafts, so keep backups for important work. Avoid editing the same local library in multiple tabs simultaneously.
+
+## The team library
+
+Since 18 October a guide can also live on the team library, a Supabase project, so two people can work on the same guide from different browsers, taking turns. It is off until the build has the project's address and anon key (`.env.example` says where they come from; the published tool takes them from the repository's Actions variables, see `.github/workflows/pages.yml`). Set it up once:
+
+1. Create a project at supabase.com and run `supabase/migrations/0001_guides.sql` in its SQL editor: the `guides` table, the `team` guest list, the public `guides` bucket for the photos, and the policies that let only signed-in emails on the guest list read and write.
+2. Add the team's emails to `team` (lower case). Authentication → URL Configuration: the site URL `https://shaunphh.github.io/guide-studio/`, and `http://127.0.0.1:5193/` under Redirect URLs for the dev server.
+3. Project Settings → API: the Project URL and anon key go into `.env.local` for the dev server, and into the repository's Actions variables (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) for the published tool.
+
+Then **Sign in** in the top bar sends an email link; opened on the same computer, it signs that browser in, and the session stays until Sign out (in My guides). My guides lists the team's guides under this browser's, newest first, with who saved each: **Open** takes a copy into this browser, linked to its row. **Save to team** (the top bar, or My guides) sends the copy back: photos still held as data go to the bucket first, under the guide's id, and the copy keeps their addresses, so it gets small; a save that lands after someone else's asks whether to overwrite the team copy or keep yours as a guide of its own. The save line under the guide's name says where the copy stands ("team copy: jack, today 14:02", or "changed since the team copy"). Export, Backup and Restore are as before; a backup folds the bucket's photos back in as data, so the file stands on its own. A browser that isn't signed in loads none of this (`src/team.ts` is a chunk of its own). The free plan's limits, 1 GB of storage and 5 GB a month out, fit a few guides a week; the photos are the cost, about half a megabyte each.
+
+For the posting phone: instagram.com posts carousels from a Mac, so the ZIP can go straight up without the phone; or sign the phone's browser in, open the team guide there and export.
 
 ## The shared AD tokens
 
@@ -60,6 +72,6 @@ Approved type defaults: covers 196px Bold, −3% tracking and 85% line height; s
 
 ## Deliberately deferred
 
-Direct Google Docs/Sheets connections; automatic source refresh and conflict resolution; shared team saving and accounts; persistent version history; publishing global brand updates to the existing tools. This trial establishes the editor, page rendering and saved issue format before those integrations.
+Direct Google Docs/Sheets connections; automatic source refresh and conflict resolution; live co-editing (the team library, 18 October, is turn-taking with a sign-in); persistent version history; publishing global brand updates to the existing tools. This trial establishes the editor, page rendering and saved issue format before those integrations.
 
 The Instagram post mockup preview idea is recorded in `notes/decisions.md` for a later pass across this tool, Tape Type and Event-guide.

@@ -38,6 +38,7 @@ export function loadImage(url: string) {
       const img = new Image()
       img.onload = () => { loaded.set(url, img); resolve(img) }
       img.onerror = () => { images.delete(url); reject(new Error('A photo could not load. Replace it and try again.')) }
+      if (/^https?:\/\//.test(url)) img.crossOrigin = 'anonymous'  // the team's bucket allows it; without this the export canvas would be tainted
       img.src = asset(url)
     })
     images.set(url, promise)

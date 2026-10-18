@@ -7,7 +7,9 @@ export type Series = 'picks' | 'new'
 export type Crop = { x: number; y: number; zoom: number }
 export type Story = { id: string; title: string; body: string; handle: string; date: string; time: string; venue: string; photo: string; coverEligible: boolean; crop: Crop; imageHeight: number | null }
 export type Cover = { title: string; subtitle: string; date: string; slots: string[]; photos: string[]; backgrounds: Record<Series,CoverBounds | null>; backgroundsRevision: typeof BACKGROUNDS_REVISION; crops: Crop[]; position: number; scrim: number; layout: 2 | 4; orientation: 'vertical' | 'horizontal'; logoPosition: 'left' | 'right' | 'off'; markColour: 'series' | 'yellow' | 'white' | 'dark'; divider: 'dark' | 'light' | 'yellow'; subtitlePosition: 'bottom' | 'tape' }
-export type Issue = { id: string; name: string; series: Series; cover: Cover; stories: Story[]; updated: string; sample: boolean }
+/** Where a guide stands on the team library: the row's server time and who saved it, and this copy's `updated` when they last matched. */
+export type TeamLink = { updatedAt: string; by: string; synced: string }
+export type Issue = { id: string; name: string; series: Series; cover: Cover; stories: Story[]; updated: string; sample: boolean; team?: TeamLink }
 export type Brand = { revision: 8; bodySize: number; bodyWeight: 400 | 500; titleSize: number; titleWeight: number; dateWeight: number; lineHeight: number; margin: number; imageHeight: number; coverSize: number; coverTracking: number; coverLineHeight: number; subtitleSize: number; lightBody: string; darkBody: string; light: string; dark: string; yellow: string }
 export type Library = { version: 1; activeId: string; issues: Issue[]; brand: Brand }
 // The AD palette shared with Tape Type and the Event Guide (2 Oct): yellow #FFED1F, light #F0F0F0,
@@ -113,6 +115,11 @@ export function sanitizeBrand(value: unknown): Brand {
 // Earlier backups embedded the demo poster. Recognise its exact bytes, without excluding replacement photography.
 const isSamplePoster = (photo: string) => photo === '/photos/art.jpg' || (photo.length === 299695 && crc32(new TextEncoder().encode(photo)) === 2975244171)
 const sanitizeStory = (s: Record<string, any>, id: string): Story => ({ id, title: string(s.title, 500), body: string(s.body), handle: string(s.handle, 200), date: string(s.date, 100), time: string(s.time, 100), venue: string(s.venue, 200), photo: safePhoto(s.photo), coverEligible: s.coverEligible !== false && !isSamplePoster(safePhoto(s.photo)), crop: safeCrop(s.crop), imageHeight: s.imageHeight == null ? null : bounded(s.imageHeight, 280, 620, 530) })
+/** A team link survives a save only whole; anything else means the guide is this browser's alone. */
+function teamLink(value: unknown): TeamLink | undefined {
+  const t = record(value), updatedAt = string(t.updatedAt, 100), by = string(t.by, 200), synced = string(t.synced, 100)
+  return updatedAt && by ? { updatedAt, by, synced: synced || updatedAt } : undefined
+}
 export function sanitizeIssue(value: unknown): Issue {
   const o = record(value)
   if (!Array.isArray(o.stories) || !o.stories.length || o.stories.length > 40) throw new Error('A guide must contain between 1 and 40 stories.')
@@ -131,7 +138,7 @@ export function sanitizeIssue(value: unknown): Issue {
   const boxes: Record<string, unknown> = c.backgroundsRevision === BACKGROUNDS_REVISION ? record(c.backgrounds) : {}
   const coverStories = stories.filter(s => s.coverEligible)
   const series: Series = o.series === 'new' ? 'new' : 'picks'
-  return { id: string(o.id, 100) || newId(), name: string(o.name, 150) || 'Untitled guide', series, stories, sample: o.sample === true, updated: string(o.updated, 100) || new Date().toISOString(), cover: { title: string(c.title, 250) || coverTitle(series), subtitle: string(c.subtitle, 300), date: string(c.date, 100), slots: Array.from({ length: 4 }, (_, i) => coverStories.some(s => s.id === c.slots?.[i]) ? c.slots[i] : (coverStories[i % coverStories.length]?.id || '')), photos: Array.from({ length: 4 }, (_, i) => safePhoto(c.photos?.[i])), backgrounds: { picks:readBounds(boxes.picks), new:readBounds(boxes.new) }, backgroundsRevision: BACKGROUNDS_REVISION, crops: Array.from({ length: 4 }, (_, i) => safeCrop(c.crops?.[i])), position: bounded(c.position, 30, 70, 50), scrim: bounded(c.scrim, 0, 80, 30), layout: c.layout === 4 ? 4 : 2, orientation: c.orientation === 'horizontal' ? 'horizontal' : 'vertical', logoPosition: ['left','right','off'].includes(c.logoPosition) ? c.logoPosition : 'right', markColour: ['series','yellow','white','dark'].includes(c.markColour) ? c.markColour : 'series', divider: ['dark','light','yellow'].includes(c.divider) ? c.divider : 'dark', subtitlePosition: c.subtitlePosition === 'tape' ? 'tape' : 'bottom' } }
+  return { id: string(o.id, 100) || newId(), name: string(o.name, 150) || 'Untitled guide', series, stories, sample: o.sample === true, team: teamLink(o.team), updated: string(o.updated, 100) || new Date().toISOString(), cover: { title: string(c.title, 250) || coverTitle(series), subtitle: string(c.subtitle, 300), date: string(c.date, 100), slots: Array.from({ length: 4 }, (_, i) => coverStories.some(s => s.id === c.slots?.[i]) ? c.slots[i] : (coverStories[i % coverStories.length]?.id || '')), photos: Array.from({ length: 4 }, (_, i) => safePhoto(c.photos?.[i])), backgrounds: { picks:readBounds(boxes.picks), new:readBounds(boxes.new) }, backgroundsRevision: BACKGROUNDS_REVISION, crops: Array.from({ length: 4 }, (_, i) => safeCrop(c.crops?.[i])), position: bounded(c.position, 30, 70, 50), scrim: bounded(c.scrim, 0, 80, 30), layout: c.layout === 4 ? 4 : 2, orientation: c.orientation === 'horizontal' ? 'horizontal' : 'vertical', logoPosition: ['left','right','off'].includes(c.logoPosition) ? c.logoPosition : 'right', markColour: ['series','yellow','white','dark'].includes(c.markColour) ? c.markColour : 'series', divider: ['dark','light','yellow'].includes(c.divider) ? c.divider : 'dark', subtitlePosition: c.subtitlePosition === 'tape' ? 'tape' : 'bottom' } }
 }
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']

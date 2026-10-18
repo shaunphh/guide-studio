@@ -1,5 +1,7 @@
 import './styles.css'
 import { BASE_BRAND, blankStory, clone, coverLook, coverPhoto, designUnlocked, crop, makeIssue, newId, parseImport, pictureHeight, readLibrary, sanitizeBrand, sanitizeIssue, saveLibrary, seriesName, switchSeries, type Brand, type Issue, type Library, type Series, wordCount, WORD_GOAL } from './model'
+import { teamConfigured } from './teamConfig'
+import { changedSinceTeam, describeSave } from './teamModel'
 import { HEIGHT, WIDTH, asset, coverFrames, fillPreviewText, loadFonts, loadedImage, preparePhoto, renderPage } from './render'
 import { zipFiles } from './zip'
 import { loadSheet, parseSheetLink, saveSheetLink, savedSheetLink } from './sheet'
@@ -8,9 +10,12 @@ import { dragPhoto } from './tape/photo'
 
 const app = document.querySelector<HTMLDivElement>('#app')!
 const escape = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]!)
-const icons: Record<string,string> = { plus:'M12 5v14M5 12h14', upload:'M12 16V4m-5 5 5-5 5 5M4 16v4h16v-4', down:'M12 4v12m-5-5 5 5 5-5M4 17v3h16v-3', undo:'M8 4 3 9l5 5M3 9h10a7 7 0 0 1 0 14', redo:'m16 4 5 5-5 5m5-5H11a7 7 0 0 0 0 14', grid:'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z', arrow:'m9 5 7 7-7 7', close:'m6 6 12 12M6 18 18 6', check:'m5 12 4 4L19 6', sliders:'M4 7h9m4 0h3M4 17h3m4 0h9M13 4v6M7 14v6', copy:'M8 8h12v13H8zM16 8V3H3v13h5', trash:'M3 6h18M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7m4-7v7', image:'M3 3h18v18H3zM3 16l6-6 5 5 3-3 4 4M16 7h.01', up:'m6 14 6-6 6 6', more:'M5 12h.01M12 12h.01M19 12h.01', file:'M6 3h8l4 4v14H6zM14 3v5h5M9 12h6m-6 4h6' }
+const icons: Record<string,string> = { plus:'M12 5v14M5 12h14', upload:'M12 16V4m-5 5 5-5 5 5M4 16v4h16v-4', down:'M12 4v12m-5-5 5 5 5-5M4 17v3h16v-3', undo:'M8 4 3 9l5 5M3 9h10a7 7 0 0 1 0 14', redo:'m16 4 5 5-5 5m5-5H11a7 7 0 0 0 0 14', grid:'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z', arrow:'m9 5 7 7-7 7', close:'m6 6 12 12M6 18 18 6', check:'m5 12 4 4L19 6', sliders:'M4 7h9m4 0h3M4 17h3m4 0h9M13 4v6M7 14v6', copy:'M8 8h12v13H8zM16 8V3H3v13h5', trash:'M3 6h18M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7m4-7v7', image:'M3 3h18v18H3zM3 16l6-6 5 5 3-3 4 4M16 7h.01', up:'m6 14 6-6 6 6', more:'M5 12h.01M12 12h.01M19 12h.01', file:'M6 3h8l4 4v14H6zM14 3v5h5M9 12h6m-6 4h6', user:'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0' }
 const icon = (name: string) => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${icons[name] || icons.file}"/></svg>`
 let library: Library
+/** The team library (team.ts), loaded only when someone signs in; who is signed in, by email. */
+let teamUser: string | null = null, teamModule: Promise<typeof import('./team')> | null = null
+const team = () => (teamModule ??= import('./team'))
 let selected = 'cover', panel: 'edit'|'style' = 'edit', overview = false, coverSlot = 0, exportScale = 1
 let saving = false, saveFailed = false, saveTimer: number, renderToken = 0, historyAt = 0, historyKey = '', lastHistoryTime = 0, busy = false
 let history: { issue: Issue; brand: Brand; selected: string }[] = []
@@ -67,7 +72,8 @@ async function flushSave() {
 function updateSave() {
   const el = get('save-state'); if (!el) return
   el.className = `save-state ${saveFailed ? 'failed' : ''}`
-  el.innerHTML = `${icon(saveFailed ? 'close' : 'check')} ${saveFailed ? 'Not saved · download backup' : saving ? 'Saving…' : 'Saved on this browser'}`
+  const link = issue().team
+  el.innerHTML = `${icon(saveFailed ? 'close' : 'check')} ${saveFailed ? 'Not saved · download backup' : saving ? 'Saving…' : 'Saved on this browser'}${link ? ` · ${changedSinceTeam(issue()) ? 'changed since the team copy' : `team copy: ${escape(describeSave({ updated_at: link.updatedAt, updated_by: link.by }))}`}` : ''}`
 }
 function toast(message: string, error = false) {
   get('toast')?.remove()
@@ -129,7 +135,7 @@ function restoreView(kept: ReturnType<typeof keepView>) {
 function renderShell() {
   const kept = keepView()
   boundsObserver?.disconnect()
-  app.innerHTML = `<header class="topbar"><a class="brand" href="#" aria-label="Guide Studio home"><span class="brand-mark">a/d</span><span>Guide Studio<small>ALTERNATIVE DUBLIN</small></span></a><div class="issue-heading"><input id="issue-name" aria-label="Guide name" value="${escape(issue().name)}"><div id="save-state" class="save-state"></div></div><div class="top-actions"><button id="library" class="quiet" title="My guides">${icon('file')} My guides</button><button id="backup" class="quiet backup-button" title="Backup">${icon('down')} Backup</button><button id="house-style" class="quiet ${panel==='style'?'selected':''}" title="House style">${icon('sliders')} House style</button><button id="import" class="quiet" title="Import copy">${icon('upload')} Import copy</button><label class="resolution"><select id="export-scale" aria-label="Export resolution"><option value="1" ${exportScale===1?'selected':''}>1× PNG</option><option value="2" ${exportScale===2?'selected':''}>2× PNG</option></select></label><button id="export" class="primary">${icon('down')} Export guide</button></div></header>
+  app.innerHTML = `<header class="topbar"><a class="brand" href="#" aria-label="Guide Studio home"><span class="brand-mark">a/d</span><span>Guide Studio<small>ALTERNATIVE DUBLIN</small></span></a><div class="issue-heading"><input id="issue-name" aria-label="Guide name" value="${escape(issue().name)}"><div id="save-state" class="save-state"></div></div><div class="top-actions"><button id="library" class="quiet" title="My guides">${icon('file')} My guides</button><button id="backup" class="quiet backup-button" title="Backup">${icon('down')} Backup</button><button id="house-style" class="quiet ${panel==='style'?'selected':''}" title="House style">${icon('sliders')} House style</button><button id="import" class="quiet" title="Import copy">${icon('upload')} Import copy</button>${teamConfigured()?`<button id="team" class="quiet" title="${teamUser?'Save this guide to the team library':'Sign in to the team library'}">${icon(teamUser?'upload':'user')} ${teamUser?'Save to team':'Sign in'}</button>`:''}<label class="resolution"><select id="export-scale" aria-label="Export resolution"><option value="1" ${exportScale===1?'selected':''}>1× PNG</option><option value="2" ${exportScale===2?'selected':''}>2× PNG</option></select></label><button id="export" class="primary">${icon('down')} Export guide</button></div></header>
   <div class="workspace"><aside class="page-rail"><div class="rail-heading"><span>THIS GUIDE</span><span id="page-counter"></span></div><div class="series-switch" role="group" aria-label="Guide series"><button data-series="picks" class="${issue().series==='picks'?'active':''}">Picks</button><button data-series="new" class="${issue().series==='new'?'active':''}">What’s new</button></div><nav id="page-list" aria-label="Pages" title="↑ and ↓ move between pages" data-issue="${escape(issue().id)}"></nav><button id="add-page" class="add-page">${icon('plus')} Add story</button><div class="rail-bottom"><span class="small-dot"></span> 1080 × 1350 · Instagram</div></aside>
   <main class="stage"><div class="stage-toolbar"><div><button id="undo" class="icon-button" title="Undo" aria-label="Undo">${icon('undo')}</button><button id="redo" class="icon-button" title="Redo" aria-label="Redo">${icon('redo')}</button><span class="divider"></span><span id="selection-title">${selected==='cover'?'Cover':`Story ${pageIndex()}`}</span></div><button id="overview" class="quiet ${overview?'selected':''}">${icon('grid')} ${overview?'Back to editor':'Overview'}</button></div><div id="artboard-area" class="artboard-area ${overview?'overview':''}">${overview ? '<div id="overview-grid"></div>' : '<div class="artboard-wrap"><canvas id="artboard" width="1080" height="1350" aria-label="Guide page preview"></canvas><div id="bounds-layer" class="bounds-layer" hidden><div id="background-box" class="background-box" role="group" aria-label="Headline background bounds" tabindex="0"><span id="bounds-caption" class="bounds-caption"></span><button class="bounds-handle nw" data-handle="nw" aria-label="Resize background top left"></button><button class="bounds-handle n" data-handle="n" aria-label="Resize background top"></button><button class="bounds-handle ne" data-handle="ne" aria-label="Resize background top right"></button><button class="bounds-handle e" data-handle="e" aria-label="Resize background right"></button><button class="bounds-handle se" data-handle="se" aria-label="Resize background bottom right"></button><button class="bounds-handle s" data-handle="s" aria-label="Resize background bottom"></button><button class="bounds-handle sw" data-handle="sw" aria-label="Resize background bottom left"></button><button class="bounds-handle w" data-handle="w" aria-label="Resize background left"></button></div></div></div>'}</div><div class="stage-bottom"><div id="fit-status" role="status">Preparing preview…</div><div>${issue().sample?'<span class="sample-label">Sample content & photos</span>':''}<span>4:5 portrait</span></div></div></main>
   <aside class="inspector"><div class="inspector-title"><div><span class="eyebrow">${panel==='style'?'DESIGN CONTROLS':selected==='cover'?'THE FIRST IMPRESSION':`STORY ${String(pageIndex()).padStart(2,'0')}`}</span><h2>${panel==='style'?'House style':selected==='cover'?'Make an entrance.':'Make it read well.'}</h2></div>${panel==='style'?'<button id="close-style" class="icon-button" aria-label="Close house style">'+icon('close')+'</button>':''}</div><div id="inspector-fields" class="inspector-fields" data-kind="${escape(inspectorKind())}">${panel==='style'?stylePanel():selected==='cover'?coverPanel():storyPanel()}</div><div class="inspector-footer"><button id="export-page" class="secondary">${icon('down')} Download this page</button></div></aside></div>
@@ -275,6 +281,7 @@ function bindShell() {
     change('add',()=>{const s=blankStory();issue().stories.push(s);selected=s.id;panel='edit';overview=false},true)
   }
   get('library').onclick=openLibrary; get('import').onclick=openImport; get('backup').onclick=backup
+  get('team')?.addEventListener('click',()=>{teamUser?void saveToTeam():openSignIn()})
   get('export').onclick=()=>exportPages(true);get('export-page').onclick=()=>exportPages(false)
   get<HTMLSelectElement>('export-scale').onchange=e=>{exportScale=Number((e.target as HTMLSelectElement).value)}
   get('inspector-fields').addEventListener('input',onField)
@@ -478,10 +485,83 @@ function modal(title:string,body:string,footer=''){
   d.showModal();get('modal-close').onclick=()=>d.close();d.onclick=e=>{if(e.target===d)d.close()}
 }
 function openLibrary(){
-  modal('Your guides',`<p class="muted">Saved on this browser, including uploaded photos. Download a backup to move a guide to another computer.</p><div class="library-list">${library.issues.map(i=>`<button data-open="${escape(i.id)}"><span class="library-icon ${i.series}">${icon('file')}</span><span><strong>${escape(i.name)}</strong><small>${seriesName(i.series)} · ${i.stories.length+1} pages</small></span>${i.id===library.activeId?'<span class="in-use">OPEN</span>':icon('arrow')}</button>`).join('')}</div>`,`<button id="restore" class="quiet">${icon('upload')} Restore backup</button><button id="new-guide" class="primary">${icon('plus')} New guide</button>`)
+  modal('Your guides',`<p class="muted">Saved on this browser, including uploaded photos. Download a backup to move a guide to another computer.</p><div class="library-list">${library.issues.map(i=>`<button data-open="${escape(i.id)}"><span class="library-icon ${i.series}">${icon('file')}</span><span><strong>${escape(i.name)}</strong><small>${seriesName(i.series)} · ${i.stories.length+1} pages</small></span>${i.id===library.activeId?'<span class="in-use">OPEN</span>':icon('arrow')}</button>`).join('')}</div>${teamBlock()}`,`<button id="restore" class="quiet">${icon('upload')} Restore backup</button><button id="new-guide" class="primary">${icon('plus')} New guide</button>`)
   document.querySelectorAll<HTMLElement>('[data-open]').forEach(b=>b.onclick=async()=>{await flushSave();library.activeId=b.dataset.open!;selected='cover';overview=false;panel='edit';resetHistory();markSave();renderShell()})
   get('restore').onclick=()=>get<HTMLInputElement>('restore-file').click()
   get('new-guide').onclick=()=>{get<HTMLDialogElement>('modal').close();openNew()}
+  get('team-signin')?.addEventListener('click',()=>{get<HTMLDialogElement>('modal').close();openSignIn()})
+  get('team-signout')?.addEventListener('click',async()=>{await (await team()).signOut();teamUser=null;get<HTMLDialogElement>('modal').close();renderShell();toast('Signed out of the team library.')})
+  get('team-save')?.addEventListener('click',()=>{get<HTMLDialogElement>('modal').close();void saveToTeam()})
+  if(teamUser)void fillTeamList()
+}
+/** The team's guides in the library dialog: the newest first, with who saved each and whether a copy is here. */
+function teamBlock(){
+  if(!teamConfigured())return ''
+  if(!teamUser)return `<div class="rule"></div><div class="section-heading"><h3>Team guides</h3></div><p class="muted">Sign in to see the guides the team has shared, and to share yours.</p><button id="team-signin" class="secondary">${icon('user')} Sign in</button>`
+  const link=issue().team
+  return `<div class="rule"></div><div class="section-heading"><h3>Team guides</h3><span>${escape(teamUser)} · <button id="team-signout" class="text-button" type="button">Sign out</button></span></div><p class="muted">Shared on the team library. Open one to work on a copy here; Save to team sends your copy back. ${link?`This guide is on the team (${escape(describeSave({updated_at:link.updatedAt,updated_by:link.by}))})${changedSinceTeam(issue())?', and your copy has changed since':''}.`:'This guide is only on this browser.'}</p><button id="team-save" class="secondary">${icon('upload')} ${link?'Save this guide to the team':'Share this guide with the team'}</button><div id="team-list" class="library-list" style="margin-top:14px"><p class="muted">Loading…</p></div>`
+}
+async function fillTeamList(){
+  const el=get('team-list');if(!el)return
+  try{
+    const rows=await (await team()).listGuides()
+    if(!get('team-list'))return
+    el.innerHTML=rows.length?rows.map(r=>`<button data-team-open="${escape(r.id)}"><span class="library-icon">${icon('file')}</span><span><strong>${escape(r.name)}</strong><small>${seriesName(r.series)} · saved by ${escape(describeSave(r))}${library.issues.some(i=>i.id===r.id)?' · a copy is here':''}</small></span>${library.activeId===r.id?'<span class="in-use">OPEN</span>':''}</button>`).join(''):'<p class="muted">Nothing shared yet. Share this guide and it appears here for everyone.</p>'
+    el.querySelectorAll<HTMLElement>('[data-team-open]').forEach(b=>b.onclick=()=>void openFromTeam(b.dataset.teamOpen!))
+  }catch(e){el.innerHTML=`<p class="muted">${escape((e as Error).message)}</p>`}
+}
+/** Sign in by email link: the link comes back to this address with the session. */
+function openSignIn(){
+  modal('Sign in to the team library',`<p class="muted">Enter your email and a link is sent to it. Open the link on this computer and you’re in. Only emails on the team’s list get in.</p><label class="field"><span>Email</span><input id="signin-email" type="email" autocomplete="email" spellcheck="false" placeholder="you@alternativedublin.ie"></label><p id="signin-status" class="sheet-status muted" role="status" aria-live="polite"></p>`,`<button id="send-link" class="primary">${icon('upload')} Send me a link</button>`)
+  const send=async()=>{const email=get<HTMLInputElement>('signin-email').value.trim();if(!email)return get('signin-email').focus();const button=get<HTMLButtonElement>('send-link');button.disabled=true;get('signin-status').textContent='Sending…';try{await (await team()).sendLink(email,location.origin+location.pathname);get('signin-status').textContent=`Sent. Check ${email} for the link; this page can be closed.`}catch(e){get('signin-status').textContent=(e as Error).message;button.disabled=false}}
+  get('send-link').onclick=send;get('signin-email').onkeydown=e=>{if(e.key==='Enter')void send()};get('signin-email').focus()
+}
+/** At boot: pick up a session the email link brought back, or one this browser already had. The module loads only then. */
+async function teamStart(){
+  if(!teamConfigured())return
+  let expected=location.hash.includes('access_token')
+  try{expected||=Object.keys(localStorage).some(k=>k.startsWith('sb-'))}catch{}
+  if(!expected)return
+  try{
+    const t=await team()
+    teamUser=await t.currentEmail()
+    t.onChange(email=>{if(email!==teamUser){teamUser=email;renderShell()}})
+    if(location.hash.includes('access_token'))window.history.replaceState(null,'',location.pathname+location.search)
+    if(teamUser){renderShell();toast(`Signed in to the team library as ${teamUser}.`)}
+  }catch(e){toast((e as Error).message,true)}
+}
+/** This browser's copy to the team. A save that lands after someone else's asks whether to overwrite or keep a copy. */
+async function saveToTeam(force=false){
+  if(busy)return;const email=teamUser;if(!email)return openSignIn()
+  busy=true;const button=get<HTMLButtonElement>('team');if(button){button.disabled=true;button.innerHTML=icon('upload')+' Saving…'}
+  try{
+    await flushSave()
+    const result=await (await team()).saveGuide(clone(issue()),email,force)
+    if('conflict' in result){
+      const row=result.conflict
+      modal('The team copy has moved on',`<p class="muted"><b>${escape(describeSave(row))}</b> saved this guide after you took your copy. Overwrite the team copy with yours, or keep yours as a guide of its own on the team.</p>`,`<button id="conflict-copy" class="secondary">Keep mine as a copy</button><button id="conflict-overwrite" class="primary">Overwrite</button>`)
+      get('conflict-overwrite').onclick=()=>{get<HTMLDialogElement>('modal').close();void saveToTeam(true)}
+      get('conflict-copy').onclick=()=>{get<HTMLDialogElement>('modal').close();change('team-copy',()=>{const copy=issue();copy.id=newId();copy.name+=` · ${email.split('@')[0]}`;copy.team=undefined;library.activeId=copy.id},true);void saveToTeam()}
+      return
+    }
+    const saved=result.saved
+    library.issues=library.issues.map(i=>i.id===saved.id?saved:i);markSave();renderShell()
+    toast(`Saved to the team: “${saved.name}”.`)
+  }catch(e){toast((e as Error).message,true)}
+  finally{busy=false;const b=get<HTMLButtonElement>('team');if(b){b.disabled=false;b.innerHTML=icon('upload')+' Save to team'}}
+}
+/** A team guide into this browser, as the copy to work on. A copy already here with its own changes is asked about first. */
+async function openFromTeam(id:string){
+  if(busy)return;busy=true
+  try{
+    const {issue:opened,row}=await (await team()).openGuide(id)
+    const local=library.issues.find(i=>i.id===id)
+    const take=async()=>{await flushSave();library.issues=local?library.issues.map(i=>i.id===id?opened:i):[...library.issues,opened];library.activeId=id;selected='cover';overview=false;panel='edit';resetHistory();markSave();get<HTMLDialogElement>('modal').close();renderShell();toast(`Opened the team copy of “${opened.name}” (${describeSave(row)}).`)}
+    if(local&&changedSinceTeam(local)){
+      modal('Replace your copy?',`<p class="muted">Your copy of <b>${escape(local.name)}</b> has changes the team copy hasn’t got. Opening the team copy (${escape(describeSave(row))}) replaces them here; Save to team first to keep them.</p>`,`<button id="open-keep" class="secondary">Keep mine</button><button id="open-replace" class="primary">Replace mine</button>`)
+      get('open-keep').onclick=()=>get<HTMLDialogElement>('modal').close();get('open-replace').onclick=()=>{void take()}
+    }else await take()
+  }catch(e){toast((e as Error).message,true)}finally{busy=false}
 }
 function openNew(){
   modal('Start a new guide',`<label class="field"><span>Guide name</span><input id="new-name" placeholder="This week’s picks"></label><label class="field"><span>Series</span><select id="new-series"><option value="picks">Event Guide Picks</option><option value="new">What’s New in Dublin</option></select></label><label class="restore-style"><input id="new-sample" type="checkbox"> Start from the sample pages</label><p class="muted">Your current guide stays saved in My guides.</p>`,`<button id="create-guide" class="primary">Create guide ${icon('arrow')}</button>`)
@@ -572,7 +652,12 @@ function invalidateImport(){importResult=null;get('import-review').innerHTML='';
 function download(blob:Blob,name:string){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.hidden=true;document.body.append(a);a.click();a.remove();window.setTimeout(()=>URL.revokeObjectURL(url),30000)}
 const filename=()=>issue().name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'guide'
 async function backup(){
-  try{await flushSave();const out=clone(issue());for(const s of out.stories){if(s.photo.startsWith('/photos/')){const response=await fetch(asset(s.photo));if(!response.ok)throw new Error('A sample photo could not be included. Try again.');const blob=await response.blob();s.photo=await new Promise<string>((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result));r.onerror=reject;r.readAsDataURL(blob)})}}download(new Blob([JSON.stringify({format:'ad-guide-studio',version:1,issue:out,brand:library.brand})],{type:'application/json'}),`${filename()}.guide.json`);toast('Backup includes every page, photo and crop.')}catch(e){toast((e as Error).message,true)}
+  try{await flushSave();const out=clone(issue());delete out.team
+    // Sample photos and photos on the team's bucket go in as data, so the file stands on its own.
+    const inline=async(photo:string)=>{if(!photo.startsWith('/photos/')&&!/^https?:\/\//.test(photo))return photo;const response=await fetch(asset(photo));if(!response.ok)throw new Error('A photo could not be included. Try again.');const blob=await response.blob();return new Promise<string>((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(String(r.result));r.onerror=reject;r.readAsDataURL(blob)})}
+    for(const s of out.stories)s.photo=await inline(s.photo)
+    out.cover.photos=await Promise.all(out.cover.photos.map(inline))
+    download(new Blob([JSON.stringify({format:'ad-guide-studio',version:1,issue:out,brand:library.brand})],{type:'application/json'}),`${filename()}.guide.json`);toast('Backup includes every page, photo and crop.')}catch(e){toast((e as Error).message,true)}
 }
 async function exportPages(all:boolean){
   if(busy)return
@@ -691,6 +776,7 @@ async function boot(){
     if(stored&&stored.issues.length){library=stored;if(!library.issues.some(i=>i.id===library.activeId))library.activeId=library.issues[0].id}
     else{const sample=makeIssue('picks',true);library={version:1,activeId:sample.id,issues:[sample],brand:clone(BASE_BRAND)}}
     renderShell();if(!stored)markSave()
+    void teamStart()
   }catch(e){app.innerHTML=`<div class="loading"><h1>Your work is safe.</h1><p>${escape((e as Error).message)}</p><p>The existing saved library has not been overwritten.</p><button class="primary" onclick="location.reload()">Try again</button></div>`}
 }
 boot()

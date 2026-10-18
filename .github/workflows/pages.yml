@@ -35,6 +35,10 @@ jobs:
 
       - name: Build (served from /guide-studio/)
         run: npm run build
+        env:
+          # The team library (see .env.example): Settings → Secrets and variables → Actions → Variables. Unset, the build has no team library.
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
 
       - name: Configure Pages
         uses: actions/configure-pages@v6
