@@ -20,8 +20,8 @@ export type Library = { version: 1; activeId: string; issues: Issue[]; brand: Br
 // scripts/sync-tokens.mjs). House style edits still adjust a library's own copy.
 const bodyStyle = adStyle('body'), titleStyle = adStyle('story-title-carousel'), coverStyle = adStyle('cover-carousel')
 export const BASE_BRAND: Brand = { revision: 8, bodySize: bodyStyle.size, bodyWeight: bodyStyle.weight === 500 ? 500 : 400, titleSize: titleStyle.size, titleWeight: titleStyle.stem, dateWeight: adStyle('date-strip').stem, lineHeight: bodyStyle.lineHeight, margin: adNumber('spacing', 'margin-inside'), imageHeight: adNumber('spacing', 'picture-height-carousel'), coverSize: coverStyle.size, coverTracking: Math.round(coverStyle.tracking * 1000) / 10, coverLineHeight: coverStyle.lineHeight, subtitleSize: adStyle('supporting-line').size, lightBody: adValue('color', 'grey-on-light'), darkBody: adValue('color', 'grey-on-dark'), light: adValue('color', 'light'), dark: adValue('color', 'dark'), yellow: adValue('color', 'yellow') }
-/** The grey for venues, dates and other details, as on the Event Guide. */
-export const META_GREY = adValue('color', 'meta')
+/** The grey for dates and details in a footer, by the page's ground, as on the Event Guide (one grey for both grounds until 18 Oct 2026). */
+export const META_GREY = { light: adValue('color', 'meta-on-light'), dark: adValue('color', 'meta-on-dark') }
 /** Boxes dragged before revision 2 were trial values Shaun sent over; they are now the defaults, so they are dropped once. */
 export const BACKGROUNDS_REVISION = 2
 export const seriesName = (s: Series) => s === 'picks' ? 'Event Guide Picks' : 'What’s New in Dublin'

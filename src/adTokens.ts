@@ -22,6 +22,8 @@ export const adNumber = (family: Family, name: string) => Number.parseFloat(adVa
 
 /** A weight on the variable font's scale as the tools write it: a named stop as its CSS weight (141 is 700), any other as itself (168). */
 export const toolWeight = (stem: number) => Number(Object.entries(STEMS).find(([, entry]) => entry === stem)?.[0] ?? stem)
+/** The CSS weight of the named stop nearest a stem, for the static Barlow fallback a tool draws a run the variable font can't (108 is 600). */
+export const nearestCssWeight = (stem: number) => Object.entries(STEMS).map(([css, entry]) => [Number(css), Number(entry)] as const).reduce((best, stop) => Math.abs(stop[1] - stem) < Math.abs(best[1] - stem) ? stop : best)[0]
 
 /**
  * A type style: size in px, line height as a multiple of the size, tracking as a share of the
@@ -46,7 +48,8 @@ export const AD_COLOR = {
   dark: hex('dark'),
   greyOnDark: hex('grey-on-dark'),
   greyOnLight: hex('grey-on-light'),
-  meta: hex('meta'),
+  metaOnDark: hex('meta-on-dark'),
+  metaOnLight: hex('meta-on-light'),
 }
 
 /** The type roles Tape Type sets. */

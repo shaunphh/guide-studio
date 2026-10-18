@@ -3,7 +3,7 @@ import { defaults } from './tape/settings'
 import { photoRect } from './tape/photo'
 import type { CoverBounds } from './cover-bounds'
 import { gxCovers, nearestStatic, stemOf } from './barlow'
-import { adNumber, adStyle } from './adTokens'
+import { adNumber, adStyle, nearestCssWeight } from './adTokens'
 import { META_GREY, coverLook, coverPhoto, designUnlocked, handlesOf, pictureHeight, wordCount, type Brand, type Crop, type Issue, type Story } from './model'
 
 export const WIDTH = 1080, HEIGHT = 1350
@@ -18,7 +18,7 @@ const PICTURE_TO_TITLE = 60, TITLE_TO_BODY = 20, FOOTER_CLEAR = 36
 const SAFE = adNumber('spacing', 'safe-cover'), LOGO_WIDTH = adNumber('size', 'logo-cover'), ARROW_WIDTH = adNumber('size', 'arrow')
 /** The AD footer style, shared with the Event Guide: Condensed SemiBold (5 Oct 2026), the names in ink, dates and details in the meta grey. */
 const footer = adStyle('footer')
-const FOOTER = { size: footer.size, weight: footer.weight, step: Math.round(footer.size * footer.lineHeight), face: footer.condensed ? 'Barlow GX Condensed' : 'Barlow GX Normal' }
+const FOOTER = { size: footer.size, weight: nearestCssWeight(footer.stem), step: Math.round(footer.size * footer.lineHeight), face: footer.condensed ? 'Barlow GX Condensed' : 'Barlow GX Normal' }
 /** Tape Type's inside-page label (inside.ts): ExtraBold at the body size, on tape with a clean cut of its own. */
 const LABEL = { size: adStyle('label').size, weight: adStyle('label').weight }
 /** Carousel covers: the headline's and the supporting line's weights. */
@@ -233,7 +233,7 @@ function drawStory(ctx: CanvasRenderingContext2D, s: Story, number: number, issu
   if (handleLines.length > 2) errors.push('The handles are too long for the footer.')
   handleLines.slice(0,2).forEach((l,i) => ctx.fillText(l,m,footY-(handleLines.length > 1 ? FOOTER.step : 0)+i*FOOTER.step))
   if (info) {
-    ctx.fillStyle = META_GREY; footerFont(ctx, info)
+    ctx.fillStyle = dark ? META_GREY.dark : META_GREY.light; footerFont(ctx, info)
     if (infoLines.length > 2) errors.push('The event details are too long for the footer.')
     ctx.textAlign = 'right'
     infoLines.slice(0,2).forEach((l,i) => ctx.fillText(l,WIDTH-m,footY-(infoLines.length > 1 ? FOOTER.step : 0)+i*FOOTER.step))
