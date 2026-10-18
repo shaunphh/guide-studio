@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { makeIssue, sanitizeIssue } from '../src/model'
-import { changedSinceTeam, describeSave, photoHash, photoUploads, referencedPaths, withPhotoUrls } from '../src/teamModel'
+import { changedSinceTeam, describeSave, photoHash, photoUploads, referencedPaths, teamRecord, withPhotoUrls } from '../src/teamModel'
 
 const BASE = 'https://x.supabase.co/storage/v1/object/public/guides/'
 
@@ -41,5 +41,18 @@ describe('the team library', () => {
   it('says who saved and when', () => {
     expect(describeSave({ updated_at: '2026-10-18T13:02:00Z', updated_by: 'jack@example.com' }, new Date('2026-10-18T15:00:00Z'))).toMatch(/^jack, today \d\d:\d\d$/)
     expect(describeSave({ updated_at: '2026-10-17T13:02:00Z', updated_by: 'jack@example.com' }, new Date('2026-10-18T15:00:00Z'))).toMatch(/^jack, Sat 17 Oct \d\d:\d\d$/)
+  })
+  it('writes the Published tick as its own column, and keeps the link out of the row (18 Oct 2026)', () => {
+    const issue = makeIssue('new')
+    issue.team = { updatedAt: '2026-10-18T12:00:00+00:00', by: 'jack@example.com', synced: issue.updated }
+    const row = teamRecord(issue, 'shaun@example.com')
+    expect(row.published).toBe(false)
+    expect(row.updated_by).toBe('shaun@example.com')
+    expect('team' in row.issue).toBe(false)
+    issue.published = true
+    expect(teamRecord(issue, 'shaun@example.com').published).toBe(true)
+    // A guide from a backup or an older build has no tick: it is unpublished until someone ticks it.
+    expect(sanitizeIssue({ ...issue, published: 'yes' }).published).toBe(false)
+    expect(sanitizeIssue({ ...issue, published: true }).published).toBe(true)
   })
 })

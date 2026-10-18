@@ -8,10 +8,10 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { TEAM } from './teamConfig'
 import { sanitizeIssue, type Issue } from './model'
-import { photoUploads, referencedPaths, withPhotoUrls, type TeamRow } from './teamModel'
+import { photoUploads, referencedPaths, teamRecord, withPhotoUrls, type TeamRow } from './teamModel'
 
 const BUCKET = 'guides'
-const ROW = 'id,name,series,updated_at,updated_by'
+const ROW = 'id,name,series,updated_at,updated_by,published'
 let client: SupabaseClient | null = null
 const supabase = () => (client ??= createClient(TEAM.url, TEAM.key, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }))
 const fail = (what: string, error: { message: string } | null) => { if (error) throw new Error(`${what}: ${error.message}`) }
@@ -42,6 +42,7 @@ export async function openGuide(id: string): Promise<{ issue: Issue; row: TeamRo
   const row = data as TeamRow & { issue: unknown }
   const issue = sanitizeIssue(row.issue)
   issue.id = row.id
+  issue.published = row.published === true
   issue.team = { updatedAt: row.updated_at, by: row.updated_by, synced: issue.updated }
   return { issue, row }
 }
@@ -63,8 +64,10 @@ export async function saveGuide(issue: Issue, email: string, force = false): Pro
     fail('Couldn’t upload a photo', error)
     urls.set(upload.dataUrl, storage.getPublicUrl(upload.path).data.publicUrl)
   }
-  const { team, ...rest } = withPhotoUrls(issue, dataUrl => urls.get(dataUrl))
-  const record = { id: issue.id, name: issue.name, series: issue.series, issue: rest, updated_by: email }
+  const withUrls = withPhotoUrls(issue, dataUrl => urls.get(dataUrl))
+  const { team } = withUrls
+  const record = teamRecord(withUrls, email)
+  const rest = record.issue
   let row: TeamRow
   if (!team && !force) {
     const { data, error } = await supabase().from('guides').insert(record).select(ROW).single()

@@ -5,8 +5,14 @@
  */
 import type { Issue, Series } from './model'
 
-/** A guide's row in the team library (the `guides` table), without the issue itself. */
-export type TeamRow = { id: string; name: string; series: Series; updated_at: string; updated_by: string }
+/** A guide's row in the team library (the `guides` table), without the issue itself. `published` (18 Oct 2026): its stories go to the website. */
+export type TeamRow = { id: string; name: string; series: Series; updated_at: string; updated_by: string; published?: boolean }
+
+/** The row Save to team writes: the guide without its link, and the Published tick as its own column, which the website's view reads. */
+export function teamRecord(issue: Issue, email: string) {
+  const { team: _team, ...rest } = issue
+  return { id: issue.id, name: issue.name, series: issue.series, issue: rest, updated_by: email, published: issue.published === true }
+}
 
 const isData = (photo: string) => photo.startsWith('data:')
 export const isRemote = (photo: string) => /^https?:\/\//.test(photo)
